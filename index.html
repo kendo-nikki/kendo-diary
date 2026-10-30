@@ -681,7 +681,7 @@ window.addEventListener('load', function () {
   <footer class="site-footer">
     <div class="site-footer-copy">© 2026 MARC PROGRAM. All Rights Reserved.</div>
     <div class="site-footer-note">本システムの無断転載・複製・商用利用およびコード・デザインの盗用を固く禁じます。</div>
-    <div class="site-footer-ver">ver. 2026-10-30f</div>
+    <div class="site-footer-ver">ver. 2026-10-30g</div>
   </footer>
 
 </div>
@@ -1224,9 +1224,9 @@ let daSeqData = null;
 // 小さい回数は割合ではなく「回数そのもの」を見せる。色だけに頼らず、マスの中に ◎○× の記号も入れる
 const DA_TAG_RES = {
   good:  { label: 'うまくできた', mark: '◎' },
-  some:  { label: '少しできた',   mark: '○' },
-  bad:   { label: 'できなかった', mark: '×' },
-  other: { label: '記入なし・その他', mark: '' }
+  some:  { label: '少しうまくできた',   mark: '○' },
+  bad:   { label: 'うまくできなかった', mark: '×' },
+  other: { label: '試した・気づいた・変化なし', mark: '' } // Q5で上の3つ以外だけを選んだ日（新しいことを試した／気づいたことがあった／特に変化なし）
 };
 let daTagData = [];
 function daFocus(d) {
@@ -1253,7 +1253,7 @@ function daFocus(d) {
         }).join('') + '</div>'
       + '<div class="da-tag-sum">' + ['good', 'some', 'bad'].filter(function(k) { return cnt[k]; }).map(function(k) {
           return DA_TAG_RES[k].mark + ' ' + DA_TAG_RES[k].label + ' ' + cnt[k];
-        }).join('　') + (cnt.other ? '　記入なし ' + cnt.other : '') + '</div>'
+        }).join('　') + (cnt.other ? '　□ ' + DA_TAG_RES.other.label + ' ' + cnt.other : '') + '</div>'
       + '<div class="da-tag-info" id="da-tag-info-' + ri + '"></div>'
       + '</div>';
   });
@@ -1450,7 +1450,7 @@ function daRender(d) {
   }
   // 並び：① 調子の波 → ② 今のテーマ（進み具合） → ③ 過去の一言 → ④ 仲間からの反応 → 次の稽古へ
   return h + daSummary(d) + daWave(d) + daFocus(d) + daNotes(d) + daPeers(d) + daNext(d)
-    + '<div class="da-note" style="margin-top:10px;">※Q5を複数選んだ日は「うまく→少し→できず」の順で1つに数えています</div>';
+    + '<div class="da-note" style="margin-top:10px;">※Q5を複数選んだ日は「うまくできた → 少しうまくできた → うまくできなかった」の順で、先にあるもの1つに数えています</div>';
 }
 
 // 名前以外をクリア
