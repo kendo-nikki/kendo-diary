@@ -124,6 +124,12 @@ window.addEventListener('load', function () {
   .diary-wrap { background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border-soft); box-shadow: var(--shadow-sm); padding: 18px 20px; margin-bottom: 14px; }
   .diary-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
   .diary-title { font-size: 15px; font-weight: 700; color: var(--primary); letter-spacing: .04em; }
+  .diary-date-pick { margin-left: auto; position: relative; display: inline-flex; cursor: pointer; }
+  .diary-date-pick input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: none; padding: 0 !important; margin: 0; font-size: 16px; }
+  .diary-date-pick input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+  .diary-date.past { background: #FFF4E5; color: #B45309; }
+  .diary-date-past { margin: -4px 0 10px; padding: 7px 12px; border-radius: var(--radius-sm); background: #FFF4E5; border: 1px solid #FCD9A8; color: #92400E; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .diary-date-past button { margin-left: auto; min-height: 30px !important; padding: 0 10px; border: 1px solid #F0B46B; border-radius: 999px; background: #fff; color: #92400E; font-family: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
   .diary-date { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--ink-muted); background: var(--bg-warm); padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
   .diary-name-row { margin-bottom: 18px; }
   .diary-name-inline { display: flex; gap: 8px; }
@@ -139,7 +145,6 @@ window.addEventListener('load', function () {
   .hk-cm-form input:focus { border-color: var(--primary); outline: none; }
   .hk-cm-send { flex-shrink: 0; min-height: 40px !important; padding: 0 14px; border: none; border-radius: var(--radius-sm); background: var(--primary); color: #fff; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; }
   .hk-cm-count { font-size: 10px; color: var(--ink-muted); text-align: right; margin-top: 3px; }
-  .diary-who-edit { flex-shrink: 0; min-height: 32px !important; padding: 0 12px; border: 1.5px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--ink-soft); font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; }
   .diary-name-label { font-size: 11px; font-weight: 700; color: var(--ink-soft); letter-spacing: .06em; margin-bottom: 6px; display: block; }
   .diary-name-input { width: 100%; padding: 11px 14px !important; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 16px !important; color: var(--ink); }
   .diary-name-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,58,107,0.08); outline: none; }
@@ -412,6 +417,7 @@ window.addEventListener('load', function () {
   .site-footer { margin: 28px 0 0; padding: 16px 8px 4px; border-top: 1px solid var(--border); text-align: center; color: var(--ink-muted); }
   .site-footer-copy { font-size: 11px; letter-spacing: .04em; }
   .site-footer-note { font-size: 10px; line-height: 1.7; margin-top: 4px; }
+  .site-footer-ver { font-size: 9px; margin-top: 6px; opacity: .6; letter-spacing: .04em; }
   .diary-mark { width: 24px; height: 24px; flex-shrink: 0; }
   .header .header-kamon { opacity: 1; }
   .q4-my-hint { font-size: 11px; color: var(--ink-muted); line-height: 1.6; margin: -2px 0 8px; }
@@ -440,6 +446,7 @@ window.addEventListener('load', function () {
   @media (max-width: 400px) { .hk-sub-more { display: none; } }
   .diary-name-taken { margin-top: 8px; padding: 9px 12px; border-radius: var(--radius-sm); background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; font-size: 12.5px; font-weight: 700; line-height: 1.6; }
   .diary-name-taken button { display: block; margin-top: 4px; padding: 0; border: none; background: none; color: var(--ink-muted); font-family: inherit; font-size: 11px; font-weight: 500; text-decoration: underline; cursor: pointer; min-height: 0 !important; }
+  .diary-name-hint b { color: var(--red); font-weight: 700; }
   .diary-name-hint { font-size: 11px; color: var(--ink-muted); line-height: 1.6; margin-top: 6px; }
   /* 分析：ことばの要約（数えた事実だけで組み立てた文章） */
   .da-sumi { background: linear-gradient(180deg, #ffffff, #f7faff); border: 1.5px solid rgba(26,58,107,0.2); border-radius: var(--radius-md); padding: 12px 14px; margin: 6px 0 12px; }
@@ -486,11 +493,10 @@ window.addEventListener('load', function () {
 
   <div id="tab-news">
     <div class="diary-wrap">
-      <!-- 記入者：保存済みなら表示のみ、未保存・変更時だけ入力欄 -->
+      <!-- ニックネーム：保存済みなら表示のみ（変更はできない）。保存されていない端末でだけ入力欄と「決定」を出す -->
       <div class="diary-who" id="diary-who" style="display:none;">
-        <span class="diary-who-label">記入者</span>
+        <span class="diary-who-label">ニックネーム</span>
         <span class="diary-who-name" id="diary-who-name"></span>
-        <button type="button" class="diary-who-edit" onclick="editDiaryName()">変更</button>
       </div>
       <div class="diary-name-row" id="diary-name-row">
         <label class="diary-name-label" for="diary-name">ニックネーム<span style="color:var(--red);margin-left:2px;">*</span></label>
@@ -499,7 +505,7 @@ window.addEventListener('load', function () {
           <button type="button" class="diary-name-ok" onclick="confirmDiaryName()">決定</button>
         </div>
         <div class="diary-name-taken" id="diary-name-taken" style="display:none;"></div>
-        <div class="diary-name-hint">日記はこのニックネームで記録されます。いつも同じ名前で書きましょう。</div>
+        <div class="diary-name-hint">日記はこのニックネームで記録されます。<b>決めたニックネームはあとから変えられません。</b></div>
       </div>
 
       <!-- 切り替え：日記をつける／分析／仲間の一言（開いたときは常に「日記をつける」） -->
@@ -514,8 +520,13 @@ window.addEventListener('load', function () {
       <div class="diary-head">
         <svg class="diary-mark" viewBox="0 0 64 64" fill="none" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#f9f7f4" stroke="#1a3a6b" stroke-width="1.5"/><path d="M15 30 C13 40 11 48 9 55 L20 57 C21 50 22 44 23 38 Z" fill="#1a3a6b"/><path d="M49 30 C51 40 53 48 55 55 L44 57 C43 50 42 44 41 38 Z" fill="#1a3a6b"/><path d="M12.6 44 L21.6 45.2" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7"/><path d="M51.4 44 L42.4 45.2" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7"/><path d="M12.0 48 L21.3 49.2" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7"/><path d="M52.0 48 L42.699999999999996 49.2" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7"/><path d="M11.4 52 L21.0 53.2" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7"/><path d="M52.6 52 L43.0 53.2" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7"/><ellipse cx="32" cy="29" rx="18" ry="20" fill="#1a3a6b"/><ellipse cx="32" cy="30.5" rx="12.2" ry="15" fill="#f9f7f4" stroke="#b8960c" stroke-width="1.4"/><line x1="32" y1="15.8" x2="32" y2="45.2" stroke="#1a3a6b" stroke-width="1.6"/><path d="M23.5 19.9 Q32 21.9 40.5 19.9" stroke="#2a5298" stroke-width="1.2" fill="none"/><path d="M21.4 23.9 Q32 25.9 42.6 23.9" stroke="#2a5298" stroke-width="1.2" fill="none"/><path d="M20.7 33.4 Q32 35.4 43.3 33.4" stroke="#2a5298" stroke-width="1.2" fill="none"/><path d="M22.0 37.4 Q32 39.4 42.0 37.4" stroke="#2a5298" stroke-width="1.2" fill="none"/><path d="M24.8 41.4 Q32 43.4 39.2 41.4" stroke="#2a5298" stroke-width="1.2" fill="none"/><circle cx="26" cy="29.4" r="1.9" fill="#d4ad1a"/><circle cx="38" cy="29.4" r="1.9" fill="#d4ad1a"/><path d="M27.9 29.4 L30.4 29.4 M33.6 29.4 L36.1 29.4" stroke="#d4ad1a" stroke-width="1"/><rect x="26.5" y="47" width="11" height="9" rx="2.2" fill="#1a3a6b"/><line x1="27.5" y1="51.5" x2="36.5" y2="51.5" stroke="#d4ad1a" stroke-width=".9"/><path d="M48.5 8.9 Q48.5 13.5 53.1 13.5 Q48.5 13.5 48.5 18.1 Q48.5 13.5 43.9 13.5 Q48.5 13.5 48.5 8.9 Z" fill="#d4ad1a"/></svg>
         <span class="diary-title">剣道日記</span>
-        <span class="diary-date" id="diary-date"></span>
+        <!-- 記録する日：押すとカレンダー（今日から7日前まで選べる）。透明な日付欄を重ねて、スマホでも確実に開くようにする -->
+        <label class="diary-date-pick" id="diary-date-pick">
+          <span class="diary-date" id="diary-date"></span>
+          <input type="date" id="diary-date-input" aria-label="記録する日" onchange="onDiaryDateChange(this.value)">
+        </label>
       </div>
+      <div class="diary-date-past" id="diary-date-past" style="display:none;"></div>
 
       <!-- 前回の一言に届いた反応（1行。「見る」を押すと前回の一言と反応が開く） -->
       <div class="my-notice-wrap" id="my-notice-wrap" style="display:none;">
@@ -645,6 +656,7 @@ window.addEventListener('load', function () {
   <footer class="site-footer">
     <div class="site-footer-copy">© 2026 MARC PROGRAM. All Rights Reserved.</div>
     <div class="site-footer-note">本システムの無断転載・複製・商用利用およびコード・デザインの盗用を固く禁じます。</div>
+    <div class="site-footer-ver">ver. 2026-10-30b</div>
   </footer>
 
 </div>
@@ -652,7 +664,7 @@ window.addEventListener('load', function () {
 <script>
 // ============================================================
 //  剣道日記 一般公開版（佐賀学園 MARCシートの剣道日記を単体ページ化）
-//  GAS：剣道日記 一般公開版 GAS v6
+//  GAS：剣道日記 一般公開版 GAS v7
 // ============================================================
 const GAS_URL     = 'https://script.google.com/macros/s/AKfycbxHMiudUASz7_xodDd_6G-jBUY57XqFnqa-8eZCUmyddOQmz-R9fiaumAnt5-wm9ppK_g/exec';
 const WRITE_TOKEN = 'kendoDiaryPublic2026';
@@ -782,7 +794,7 @@ function onDiaryNameInput(el) {
 }
 
 // ===== 記入者表示 =====
-// ニックネームが保存済み → 「記入者：〇〇　変更」の表示のみ。未保存・変更中 → 入力欄を出す。
+// ニックネームが保存済み → 「ニックネーム　〇〇」の表示のみ（変更ボタンなし）。未保存 → 入力欄と「決定」を出す。
 let _diaryNameEditing = false;
 function refreshDiaryWho() {
   const nameEl = document.getElementById('diary-name');
@@ -801,7 +813,9 @@ function refreshDiaryWho() {
   if (typeof drawHitokoto === 'function') drawHitokoto();
   renderWeekly(); // 「（あなた）」の表示を今の名前に合わせる
 }
+// 入力欄を出して入力をうながす。ニックネームはこの端末で一度決めたら変えられないので、決まっていれば何もしない
 function editDiaryName() {
+  if (confirmedNick()) return;
   _diaryNameEditing = true;
   refreshDiaryWho();
   const el = document.getElementById('diary-name');
@@ -861,12 +875,45 @@ function applyDiaryName(n) {
 }
 
 // 今日の日付をタイトル横に表示（例：9/3(水)）
-function setDiaryDate() {
+// ===== 記録する日（カレンダーで今日から7日前まで選べる。ふだんは今日） =====
+const BACKDATE_DAYS = 7; // GAS の BACKDATE_DAYS と同じ
+let diaryDate = '';      // 'yyyy-mm-dd'（日本時間）
+let diaryDateChosen = false; // 本人がカレンダーで今日以外を選んだか（選んでいなければ、記録の瞬間の「今日」を使う）
+function jstKey(offsetDays) {
+  return new Date(Date.now() + (offsetDays || 0) * 86400000).toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
+}
+function dateLabel(key) {
+  const p = String(key).split('-').map(Number);
+  const d = new Date(p[0], p[1] - 1, p[2]);
+  return p[1] + '/' + p[2] + '(' + ['日','月','火','水','木','金','土'][d.getDay()] + ')';
+}
+function setDiaryDate(key) {
+  const today = jstKey(0), min = jstKey(-BACKDATE_DAYS);
+  if (!key || !/^\d{4}-\d{2}-\d{2}$/.test(key) || key > today || key < min) key = today;
+  diaryDate = key;
+  diaryDateChosen = key !== today;
   const el = document.getElementById('diary-date');
-  if (!el) return;
-  const now = new Date();
-  const dow = ['日','月','火','水','木','金','土'][now.getDay()];
-  el.textContent = (now.getMonth() + 1) + '/' + now.getDate() + '(' + dow + ')';
+  const inp = document.getElementById('diary-date-input');
+  const past = document.getElementById('diary-date-past');
+  if (inp) { inp.min = min; inp.max = today; inp.value = key; }
+  if (el) { el.textContent = dateLabel(key) + ' 📅'; el.classList.toggle('past', key !== today); }
+  if (past) {
+    if (key !== today) {
+      past.innerHTML = '<span>' + dateLabel(key) + 'の分として記録します</span><button type="button" onclick="setDiaryDate()">今日に戻す</button>';
+      past.style.display = 'flex';
+    } else {
+      past.style.display = 'none';
+    }
+  }
+}
+// ページを開いたまま日付が変わったとき、表示の「今日」を合わせる（選んだ日付はそのまま）
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') setDiaryDate(diaryDateChosen ? diaryDate : '');
+});
+function onDiaryDateChange(v) {
+  const today = jstKey(0), min = jstKey(-BACKDATE_DAYS);
+  if (v && (v > today || v < min)) showToast('⚠ 選べるのは今日から' + BACKDATE_DAYS + '日前までです');
+  setDiaryDate(v);
 }
 
 // 起動時：端末に保存したニックネームを復元
@@ -911,7 +958,7 @@ function submitDiary() {
   const data = {
     記録種別: '剣道日記',
     氏名: name,
-    記録日: todayJST(),
+    記録日: diaryDateChosen ? diaryDate : todayJST(), // ページを開いたまま日付が変わっても、選んでいなければその日の今日
     Q1コンディション: diaryState.q1 || '',
     Q2負荷: diaryState.q2 || '',
     Q3充実度: diaryState.q3 || '',
@@ -922,8 +969,9 @@ function submitDiary() {
   };
   gasPost(data)
   .then(function(){
-    hkAfterSubmit(name, free);
+    hkAfterSubmit(name, free, data['記録日']);
     resetDiaryForm();
+    setDiaryDate(); // 次の記録は今日から
     showToast('✓ 記録しました！');
     btn.innerHTML = label; btn.disabled = false;
   })
@@ -1722,12 +1770,11 @@ function hkReact(i, k) {
 }
 
 // 日記提出直後：自分の一言を先頭に置き換え、少し待って正式なデータを取り直す
-function hkAfterSubmit(name, text) {
+function hkAfterSubmit(name, text, dateKey) {
   const n = normNick(name);
   const t = String(text || '').trim();
   if (n && t) {
-    const now = new Date();
-    const label = (now.getMonth() + 1) + '/' + now.getDate() + '(' + ['日','月','火','水','木','金','土'][now.getDay()] + ')';
+    const label = dateLabel(dateKey || jstKey(0));
     hkItems = hkItems.filter(function(x) { return x.name !== n; });
     hkItems.unshift({ id: '', name: n, text: t, date: label, reactions: {} });
     hkOpenNames = null; hkOpenPicker = null;
