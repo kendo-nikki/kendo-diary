@@ -1,966 +1,1950 @@
-// ============================================================
-//  剣道日記 一般公開版 GAS  v11
-//  ベース：佐賀学園 MARCプログラム GAS v11.5（剣道日記まわりのみ移植）
-//  SHEET_ID：剣道日記 一般公開版 用スプレッドシート
-//
-//  残した機能（処理内容は佐賀学園版と同じ）
-//    ・剣道日記の保存（受信日時をサーバー側で記録）
-//    ・getNews：仲間の一言（各自の最新1件・新しい順）＋リアクション＋表示名
-//    ・toggleReaction / addComment / getMyComments（コメントは本人にだけ表示）
-//    ・analyzeDiary：提出＋分析（調子の波・今のテーマ・進み具合・仲間からの反応）
-//    ・setupMemberList()：部員名簿（氏名→表示名）。公開版では任意
-//
-//  v2：Q4 を新構成に変更
-//    ・基本テーマ5つ：足さばき・姿勢／攻め・間合い／打突・技／タイミング・拍子／メンタル・集中
-//    ・マイテーマ（個人設定・最大3つ）：設定画面で登録。シート「マイテーマ」に保存
-//      getMyThemes（取得）/ saveMyThemes（保存）。端末の控え＋GAS同期で別端末にも反映
-//    ・Q4の記録形式：基本テーマはそのまま、マイテーマは「マイ:〇〇」
-//    ・「その他」と、その他が育つ選択肢（getMyQ4）は廃止
-//
-//  v3：analyzeDiary が「過去の一言」（notes）も返す
-//    ・一言を書いた日を新しい順に直近7日分
-//  v3：分析の範囲は直近7回分に固定（30回・90回・全部は廃止）
-//      一言を書かなかった日は数えずにさかのぼるので、書いた分があれば必ずその数だけ並ぶ
-//      同じ日に複数回出した日は、一言が書かれた回のうち最新のもの。テーマはその回に選んだQ4（無ければその日のQ4）
-//
-//  v4：点検で見つかった不具合の修正
-//    ・数字や日付に見えるニックネーム・文章（007、1/2 など）がシートで数値・日付に変わり、
-//      仲間の一言・分析・コメントが本人と結びつかなくなる不具合を修正（入力された文字は必ず文字列で保存）
-//    ・何も入力されていない記録は保存しない
-//    ・記録日は常にサーバーの今日の日付（送られてきた日付は使わない）
-//    ・シートの日時の文字列は日本時間として読む（GASプロジェクトのタイムゾーン設定に左右されない）
-//    ・書き込みの順番待ちを10秒→20秒に延長（同時に押されても失敗しにくく）
-//
-//  v5：ニックネームの重複チェック（checkName）
-//    ・そのニックネームで記録またはマイテーマ保存がすでにあれば used:true を返す（読み取り専用）
-//    ・ページ側は、新しく名前を決めるときだけ確認し、使われていれば「このニックネームは使われています」と出す
-//
-//  v6：今週のいい気づき（getNews の weekly）
-//    ・直近7日（今日を含む）に記録された一言のうち、💡（参考になる）を押した人がいちばん多いもの1件
-//    ・💡が1つも無ければ出さない。同数なら新しい一言を優先
-//
-//  v7：記録日をカレンダーで選べる
-//    ・送られてきた記録日が「今日から7日前〜今日」の範囲なら、その日で記録する（範囲外・形式違いは今日）
-//    ・書き忘れた日の分を後から記録できるように。未来の日付や古すぎる日付は受け付けない
-//
-//  v8：Q1〜Q5を必須に／同じ日の記録は上書き
-//    ・Q1〜Q3（1〜5）、Q4・Q5（1つ以上）がそろっていない記録は保存しない
-//    ・同じニックネーム・同じ記録日の記録がすでにあれば、その行を消してから保存する（上書き）
-//    ・getMyDates：本人が記録済みの日（今日から BACKDATE_DAYS 日前まで）を返す（ページの「上書きになります」表示用）
-//
-//  v9：記録済みの日の入力値も返す（getMyDates の recs）
-//    ・ページは、記録済みの日を選ぶとその内容を入力欄に入れる（日付を選んでも通信は増えない）
-//    ・シートは末尾から読み、BACKDATE_DAYS 日より前に届いた行に当たったら読むのをやめる
-//      （記録は届いた順に下へ足され、さかのぼれるのは7日前までなので、対象の行は必ず末尾付近にある）
-//      → 記録が何年分たまっても、読む量は直近8日に届いた分だけで一定
-//
-//  v10：分析の「意識したテーマ」を全テーマ分返す（focus を上位3件 → 範囲内で選んだテーマすべて）
-//
-//  v11：分析の範囲を「直近7回」→「直近30日（今日を含む）」に変更
-//    ・記録日が今日から29日前〜今日の記録が対象。仲間からの反応も同じ30日に届いた分
-//    ・30日の中に記録が無い（それより前にはある）ときは days:0, olderRecords:true を返す
-//    ・過去の一言（一言を書いた日の直近7件）は変更なし
-//
-//  削除した機能
-//    ・リーダー配置 / 自己理解 / 稽古ログ / チャレンジ宣言
-//    ・カレンダー / 議題 / チーム編成 / メール通知 / getAll / 個人データ取得
-//
-//  公開版として変えた点（一般公開・匿名アクセス前提の防御）
-//    ・保存先は「全員_剣道日記」1枚のみ（個人シート・MARCシートは作らない）
-//    ・受け付ける項目を固定（それ以外の項目は保存しない＝列を勝手に増やされない）
-//    ・文字数の上限（ニックネーム20字・一言300字 など）
-//    ・数式として解釈される入力（= + - @ で始まる文字）を文字列として保存
-//    ・JSONP の callback 名を検査
-// ============================================================
-
-const SHEET_ID    = '1ot8fRk3w92-lUy7kPRi-X1ImBGvtQZpFbAcWJWzWilo';
-const WRITE_TOKEN = 'kendoDiaryPublic2026'; // 公開版HTMLの WRITE_TOKEN と同じ値にする
-
-const DIARY_SHEET   = '全員_剣道日記';
-const DIARY_HEADERS = ['記録種別', '氏名', '記録日', 'Q1コンディション', 'Q2負荷', 'Q3充実度',
-                       'Q4意識したこと', 'Q5変化', '一言', 'timestamp', '受信日時'];
-
-const BACKDATE_DAYS = 7; // 記録日をさかのぼれる日数
-const NAME_MAX  = 20;   // ニックネーム
-const TEXT_MAX  = 300;  // 一言
-const LIST_MAX  = 600;  // Q4・Q5（選択肢をつないだ文字列）
-const TS_MAX    = 40;   // 端末側の timestamp
-
-// リアクションの種類（HTML側の HK_TYPES と一致させる）
-const REACTION_TYPES = ['nice', 'wakaru', 'sanko'];
-
-// ============================================================
-//  共通
-// ============================================================
-function normalizeName(name) {
-  if (!name) return '';
-  return String(name).replace(/[\u3000\s]+/g, '').trim();
-}
-
-// 利用者が入力した文字は、必ず「文字列」としてシートに入れる。
-// 先頭に ' を付けると、シートは数式・数値・日付に変換せずそのまま保存する（' は表示値に出ない）。
-// これが無いと「007」→7、「1/2」→日付 に変わり、名前の照合や表示が壊れる。
-function safeCell_(v) {
-  const s = String(v == null ? '' : v);
-  return s === '' ? '' : "'" + s;
-}
-
-function jsonResponse(obj) {
-  return ContentService
-    .createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-function jsonpResponse(obj, callback) {
-  return ContentService
-    .createTextOutput(callback + '(' + JSON.stringify(obj) + ')')
-    .setMimeType(ContentService.MimeType.JAVASCRIPT);
-}
-
-// callback 名が安全なときだけ JSONP、それ以外は JSON
-function respond_(obj, callback) {
-  if (callback && /^[A-Za-z_$][\w$.]{0,63}$/.test(callback)) return jsonpResponse(obj, callback);
-  return jsonResponse(obj);
-}
-
-// ============================================================
-//  入口
-// ============================================================
-function doGet(e) {
-  const params   = (e && e.parameter) || {};
-  const callback = params.callback || null;
-  try {
-    if (params.action === 'getNews')       return handleGetNews(callback);
-    if (params.action === 'getMyComments') return handleGetMyComments(params, callback);
-    if (params.action === 'getMyThemes')   return handleGetMyThemes(params, callback);
-    if (params.action === 'analyzeDiary')  return handleAnalyzeDiary(params, callback);
-    if (params.action === 'checkName')     return handleCheckName(params, callback);
-    if (params.action === 'getMyDates')    return handleGetMyDates(params, callback);
-    return respond_({ status: 'ok', message: '剣道日記 一般公開版 GAS v11 — OK' }, callback);
-  } catch (err) {
-    return respond_({ status: 'error', message: err.message }, callback);
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>剣道日記</title>
+<meta name="description" content="毎日の稽古を5つの質問で記録し、バーチャル部活の仲間と一言を送り合える剣道日記">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<script>
+// Webフォントはページの読み込み完了後に取得（タブのクルクルが止まらない／通信が遅いと画面が動かない問題の対策）
+window.addEventListener('load', function () {
+  var l = document.createElement('link');
+  l.rel = 'stylesheet';
+  l.href = 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Noto+Sans+JP:wght@300;400;500;700&family=Noto+Serif+JP:wght@400;600;700;900&display=swap';
+  document.head.appendChild(l);
+});
+</script>
+<style>
+  :root {
+    --ink:        #0d1117;
+    --ink-soft:   #3d4451;
+    --ink-muted:  #6b7280;
+    --bg:         #f9f7f4;
+    --bg-warm:    #f2efe9;
+    --surface:    #ffffff;
+    --surface-2:  #faf9f7;
+    --border:     #e8e2d9;
+    --border-soft:#f0ebe3;
+    --primary:    #1a3a6b;
+    --primary-lt: #2a5298;
+    --gold:       #b8960c;
+    --gold-lt:    #d4ad1a;
+    --gold-pale:  #fdf6dc;
+    --red:        #c0392b;
+    --shadow-sm:  0 1px 4px rgba(13,17,23,0.06), 0 1px 2px rgba(13,17,23,0.04);
+    --shadow-md:  0 4px 16px rgba(13,17,23,0.08), 0 2px 6px rgba(13,17,23,0.05);
+    --shadow-lg:  0 12px 40px rgba(13,17,23,0.12), 0 4px 12px rgba(13,17,23,0.06);
+    --radius-sm:  8px;
+    --radius-md:  14px;
+    --radius-lg:  20px;
+    --radius-xl:  28px;
   }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+    background: var(--bg);
+    min-height: 100vh;
+    padding: 28px 16px 48px;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  .wrapper { max-width: 820px; margin: 0 auto; padding: 0 4px; }
+
+  input[type="text"], input[type="date"], input[type="email"], textarea, select {
+    font-size: 16px !important;
+    font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif !important;
+  }
+
+  input[type="date"] { min-width: 0; width: 100%; -webkit-appearance: none; appearance: none; }
+  button { min-height: 44px; }
+
+  .header {
+    text-align: center; margin-bottom: 28px;
+    background: var(--surface); border-radius: var(--radius-xl);
+    padding: 40px 32px 32px; box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-soft); position: relative; overflow: hidden;
+    animation: fadeDown 0.7s cubic-bezier(.22,1,.36,1) both;
+  }
+  .header::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--primary) 0%, var(--gold) 50%, var(--primary) 100%);
+  }
+  .header-kamon { width: 52px; height: 52px; margin: 0 auto 14px; display: block; opacity: 0.85; }
+  .header-en { font-size: 10px; letter-spacing: 0.45em; color: var(--gold); margin-bottom: 10px; font-weight: 500; text-transform: uppercase; }
+  .header-title { font-family: 'Noto Serif JP', 'Georgia', serif; font-size: clamp(24px, 5vw, 34px); font-weight: 900; color: var(--ink); letter-spacing: 0.06em; margin-bottom: 8px; line-height: 1.2; }
+  .header-title span { color: var(--primary); }
+  .header-subtitle { font-size: 10px; color: var(--ink-muted); letter-spacing: 0.2em; margin-bottom: 20px; font-weight: 300; }
+  .progress-track { width: 100%; height: 3px; background: var(--border); border-radius: 999px; margin-top: 16px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--gold)); border-radius: 999px; transition: width 0.5s cubic-bezier(.22,1,.36,1); width: 0%; }
+  .progress-label { font-size: 11px; color: var(--ink-muted); margin-top: 6px; letter-spacing: 0.1em; }
+
+  .section { background: var(--surface); border-radius: var(--radius-lg); margin-bottom: 14px; overflow: hidden; box-shadow: var(--shadow-sm); border: 1px solid var(--border-soft); animation: fadeUp 0.5s cubic-bezier(.22,1,.36,1) both; transition: box-shadow 0.2s; }
+  .section:hover { box-shadow: var(--shadow-md); }
+  .section-header { display: flex; align-items: center; gap: 14px; padding: 16px 20px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-lt) 100%); cursor: pointer; user-select: none; transition: filter 0.2s; }
+  .section-header:hover { filter: brightness(1.06); }
+  .section-number { width: 32px; height: 32px; border: 1.5px solid rgba(255,255,255,0.4); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Noto Serif JP', serif; font-size: 13px; color: rgba(255,255,255,0.9); flex-shrink: 0; font-weight: 700; }
+  .section-title { font-size: 15px; font-weight: 700; color: #ffffff; letter-spacing: 0.04em; flex: 1; }
+  .section-toggle { font-size: 16px; color: rgba(255,255,255,0.7); transition: transform 0.25s cubic-bezier(.22,1,.36,1); }
+  .section-toggle.open { transform: rotate(0deg); }
+  .section-toggle.closed { transform: rotate(-90deg); }
+  .section-body { padding: 22px 20px; background: var(--surface); }
+  .section-body.collapsed { display: none; }
+
+  .field-group { margin-bottom: 18px; }
+  .field-label { display: block; font-size: 11px; font-weight: 700; color: var(--ink-soft); margin-bottom: 7px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .field-hint { font-size: 12px; color: var(--ink-muted); margin-bottom: 7px; line-height: 1.6; font-weight: 300; }
+  .required { color: var(--red); margin-left: 2px; }
+
+  input[type=text], input[type=date], input[type=month], select, textarea {
+    width: 100%; padding: 11px 14px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--ink); background: var(--surface); transition: all 0.2s; outline: none;
+    -webkit-appearance: none; line-height: 1.5;
+  }
+  input[type=text]:focus, input[type=date]:focus, input[type=month]:focus, select:focus, textarea:focus {
+    border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,58,107,0.08); background: #fff;
+  }
+  textarea { resize: vertical; min-height: 80px; line-height: 1.75; }
+  select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; }
+
+  .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--ink); color: #fff; padding: 12px 24px; border-radius: 999px; font-size: 13px; box-shadow: var(--shadow-lg); transition: transform 0.3s cubic-bezier(.22,1,.36,1); z-index: 999; white-space: nowrap; font-weight: 500; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  .char-count { font-size: 11px; color: var(--ink-muted); text-align: right; margin-top: 4px; }
+
+  @keyframes fadeDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+  /* ===== 剣道日記（成長日誌） ===== */
+  .diary-wrap { background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border-soft); box-shadow: var(--shadow-sm); padding: 18px 20px; margin-bottom: 14px; }
+  .diary-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .diary-title { font-size: 15px; font-weight: 700; color: var(--primary); letter-spacing: .04em; }
+  .diary-date-pick { margin-left: auto; position: relative; display: inline-flex; cursor: pointer; }
+  .diary-date-pick input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: none; padding: 0 !important; margin: 0; font-size: 16px; }
+  .diary-date-pick input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+  .diary-date.past { background: #FFF4E5; color: #B45309; }
+  .diary-req { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 4px; background: #FDECEC; color: var(--red); font-size: 10px; font-weight: 700; vertical-align: 2px; letter-spacing: .04em; }
+  .diary-overwrite { margin: -4px 0 10px; padding: 7px 12px; border-radius: var(--radius-sm); background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; font-size: 12px; font-weight: 700; line-height: 1.6; }
+  .diary-q.missing { outline: 2px solid rgba(220,38,38,0.55); outline-offset: 4px; border-radius: 6px; }
+  .diary-date-past { margin: -4px 0 10px; padding: 7px 12px; border-radius: var(--radius-sm); background: #FFF4E5; border: 1px solid #FCD9A8; color: #92400E; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .diary-date-past button { margin-left: auto; min-height: 30px !important; padding: 0 10px; border: 1px solid #F0B46B; border-radius: 999px; background: #fff; color: #92400E; font-family: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+  .diary-date { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--ink-muted); background: var(--bg-warm); padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+  .diary-name-row { margin-bottom: 18px; }
+  .diary-name-inline { display: flex; gap: 8px; }
+  .diary-name-inline .diary-name-input { flex: 1; min-width: 0; }
+  .diary-name-ok { flex-shrink: 0; padding: 0 16px; border: none; border-radius: var(--radius-sm); background: var(--primary); color: #fff; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; }
+  .diary-who { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 14px; padding: 6px 12px; background: var(--bg-warm); border-radius: var(--radius-sm); }
+  .diary-who-label { font-size: 11px; font-weight: 700; color: var(--ink-muted); letter-spacing: .06em; }
+  .diary-who-name { font-size: 14px; font-weight: 700; color: var(--ink); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @keyframes hkAlertIn { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .my-notice.is-new { animation: none; } .my-notice.shine::after { display: none; } }
+  .hk-cm-form { display: flex; gap: 6px; margin-top: 7px; }
+  .hk-cm-form input { flex: 1; min-width: 0; padding: 8px 10px !important; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 16px !important; font-family: inherit; color: var(--ink); }
+  .hk-cm-form input:focus { border-color: var(--primary); outline: none; }
+  .hk-cm-send { flex-shrink: 0; min-height: 40px !important; padding: 0 14px; border: none; border-radius: var(--radius-sm); background: var(--primary); color: #fff; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; }
+  .hk-cm-count { font-size: 10px; color: var(--ink-muted); text-align: right; margin-top: 3px; }
+  .diary-name-label { font-size: 11px; font-weight: 700; color: var(--ink-soft); letter-spacing: .06em; margin-bottom: 6px; display: block; }
+  .diary-name-input { width: 100%; padding: 11px 14px !important; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 16px !important; color: var(--ink); }
+  .diary-name-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,58,107,0.08); outline: none; }
+  .diary-q { margin-bottom: 20px; padding-bottom: 18px; border-bottom: 1px solid var(--border-soft); }
+  .diary-q:last-of-type { border-bottom: none; }
+  .diary-q-label { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 4px; line-height: 1.5; }
+  .diary-q-hint { font-size: 11px; color: var(--ink-muted); line-height: 1.6; margin-bottom: 10px; }
+  .diary-q-hint .anchor { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10px; }
+  /* 5段階スケール */
+  .diary-scale { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .diary-scale-btn { padding: 12px 4px; border: 1.5px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--ink-soft); font-size: 16px; font-weight: 700; font-family: inherit; cursor: pointer; transition: all .15s; -webkit-tap-highlight-color: transparent; }
+  .diary-scale-btn:active { transform: scale(.96); }
+  .diary-scale-btn.selected { background: var(--primary); border-color: var(--primary); color: #fff; box-shadow: 0 2px 8px rgba(26,58,107,0.25); }
+  .diary-scale-ends { display: flex; justify-content: space-between; margin-top: 6px; font-size: 10px; color: var(--ink-muted); }
+  /* チェックボックス群 */
+  .diary-checks { display: flex; flex-wrap: wrap; gap: 8px; }
+  .diary-check-btn { padding: 9px 14px; border: 1.5px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--ink-soft); font-size: 13px; font-family: inherit; cursor: pointer; transition: all .15s; -webkit-tap-highlight-color: transparent; font-weight: 500; }
+  .diary-check-btn:active { transform: scale(.97); }
+  .diary-check-btn.selected { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 700; box-shadow: 0 2px 8px rgba(26,58,107,0.2); }
+  .diary-other-input { width: 100%; margin-top: 10px; padding: 10px 12px !important; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 14px !important; display: none; }
+  .diary-other-input.show { display: block; }
+  .diary-other-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,58,107,0.08); outline: none; }
+  /* 自由記述 */
+  .diary-free { width: 100%; padding: 11px 14px !important; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 14px !important; min-height: 72px; resize: vertical; line-height: 1.7; }
+  .diary-free:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,58,107,0.08); outline: none; }
+  /* 記録ボタン */
+  .diary-submit-btn { width: 100%; margin-top: 6px; padding: 14px; background: linear-gradient(135deg, var(--primary), var(--primary-lt)); color: #fff; border: none; border-radius: var(--radius-md); font-family: inherit; font-size: 15px; font-weight: 700; letter-spacing: .04em; cursor: pointer; transition: all .2s; box-shadow: 0 3px 12px rgba(26,58,107,0.25); }
+  .diary-submit-btn:hover { filter: brightness(1.07); transform: translateY(-1px); }
+  .diary-submit-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  .diary-submit-btn .sub { display: block; font-size: 10.5px; font-weight: 500; letter-spacing: 0; opacity: .8; margin-top: 2px; }
+  /* 日記の分析 */
+  .da-card { margin-top: 0; padding: 14px 16px; border-radius: var(--radius-md); background: #F4F7FC; border: 1px solid rgba(26,58,107,0.15); color: var(--ink-soft); font-size: 13px; line-height: 1.7; }
+  .da-head { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--primary); font-size: 14px; margin-bottom: 4px; }
+  .da-head button { margin-left: auto; min-height: 30px !important; padding: 0 10px; border: 1px solid rgba(26,58,107,0.3); border-radius: 999px; background: var(--surface); color: var(--primary); font-family: inherit; font-size: 12px; cursor: pointer; }
+  .da-meta { font-size: 12px; color: var(--ink-muted); margin-bottom: 8px; }
+  .da-sec { margin-top: 10px; }
+  .da-sec-title { font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 4px; }
+  .da-avg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .da-avg div { background: var(--surface); border-radius: 10px; padding: 6px 4px; text-align: center; font-size: 11px; }
+  .da-avg b { display: block; font-size: 18px; color: var(--primary); line-height: 1.3; }
+  .da-avg small { display: block; font-size: 11px; color: var(--ink-muted); }
+  .da-row { background: var(--surface); border-radius: 10px; padding: 6px 10px; margin-bottom: 4px; }
+  .da-row b { color: var(--ink-soft); }
+  .da-note { font-size: 11px; color: var(--ink-muted); margin-top: 2px; }
+  .da-empty { background: var(--surface); border-radius: 12px; padding: 12px; margin-top: 6px; font-size: 13px; color: var(--ink-soft); font-weight: 700; }
+  .da-empty-s { font-size: 11.5px; font-weight: 400; color: var(--ink-muted); margin-top: 2px; }
+  .da-empty-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .da-empty-btns button { min-height: 36px !important; padding: 0 12px; border: 1.5px solid var(--primary); border-radius: 999px; background: var(--surface); color: var(--primary); font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .da-bar-block { background: var(--surface); border-radius: 10px; padding: 8px 10px 6px; margin-bottom: 6px; }
+  .da-bar-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 12px; }
+  .da-bar-head b { color: var(--ink-soft); font-size: 13px; }
+  .da-bar-avg { color: var(--primary); font-weight: 700; }
+  .da-bar-trend { color: var(--ink-muted); font-size: 11px; }
+  .da-bars { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 4px; }
+  .da-bar-col { display: flex; flex-direction: column; align-items: center; }
+  .da-bar-n { font-size: 10.5px; color: var(--ink-soft); height: 15px; line-height: 15px; }
+  .da-bar-track { width: 100%; max-width: 34px; height: 56px; display: flex; align-items: flex-end; border-bottom: 1px solid rgba(26,58,107,0.25); }
+  .da-bar { width: 100%; background: var(--primary); border-radius: 4px 4px 0 0; }
+  .da-bar-x { font-size: 11px; color: var(--ink-muted); margin-top: 2px; }
+  .da-bar-ends { display: flex; justify-content: space-between; font-size: 10px; color: var(--ink-muted); margin-top: 1px; }
+  .da-tbl { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--surface); border-radius: 10px; overflow: hidden; font-size: 12px; }
+  .da-tbl th, .da-tbl td { padding: 6px 8px; text-align: center; border-bottom: 1px solid rgba(26,58,107,0.08); }
+  .da-tbl thead th { font-size: 11px; color: var(--ink-muted); font-weight: 500; white-space: nowrap; padding: 6px 4px; }
+  .da-tbl tbody th { text-align: left; font-weight: 700; color: var(--ink-soft); }
+  .da-tbl td { font-weight: 700; color: var(--primary); font-size: 14px; }
+  .da-tbl tr:last-child th, .da-tbl tr:last-child td { border-bottom: none; }
+  .da-q5 { display: grid; grid-template-columns: 1fr; gap: 4px; }
+  .da-q5 div { display: flex; justify-content: space-between; gap: 6px; background: var(--surface); border-radius: 8px; padding: 5px 9px; font-size: 12px; }
+  .da-q5 b { color: var(--primary); white-space: nowrap; }
+  .da-rx { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .da-rx div { background: var(--surface); border-radius: 10px; padding: 6px 4px; text-align: center; }
+  .da-rx-icon { font-size: 16px; }
+  .da-rx b { display: block; font-size: 18px; color: var(--primary); line-height: 1.2; }
+  .da-rx small { display: block; font-size: 11px; color: var(--ink-muted); }
+  .da-sub-title { font-size: 12px; font-weight: 700; color: var(--ink-soft); margin: 8px 0 4px; }
+  .da-cm { background: var(--surface); border-radius: 10px; padding: 6px 10px; margin-bottom: 4px; }
+  .da-cm-text { color: var(--ink-soft); }
+  .da-cm-meta { font-size: 11px; color: var(--ink-muted); }
+  /* 横棒グラフ */
+  .da-hbars { display: flex; flex-direction: column; gap: 8px; background: var(--surface); border-radius: 10px; padding: 10px; }
+  .da-hbar-label { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--ink-soft); margin-bottom: 3px; }
+  .da-hbar-label b { color: var(--primary); white-space: nowrap; }
+  .da-hbar-track { flex: 1; height: 12px; background: rgba(26,58,107,0.06); border-radius: 0 4px 4px 0; overflow: hidden; }
+  .da-hbar { height: 100%; background: var(--primary); border-radius: 0 4px 4px 0; }
+  .da-hbar.lo { background: #9fb3d6; }
+  .da-hbar-detail { font-size: 10.5px; color: var(--ink-muted); margin-top: 2px; }
+  .da-stack { display: flex; gap: 2px; height: 100%; }
+  .da-seg { height: 100%; min-width: 3px; }
+  .da-seg:last-child { border-radius: 0 4px 4px 0; }
+  .o-good { background: #2a5298; } .o-some { background: #6f9be0; } .o-bad { background: #d9822b; } .o-other { background: #98a3b6; }
+  .da-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--ink-soft); margin-bottom: 6px; }
+  .da-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  /* 続けて意識（塗りのマス） */
+  .da-tl { background: var(--surface); border-radius: 10px; padding: 10px; }
+  .da-tl-row { margin-bottom: 8px; }
+  .da-tl-head { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--ink-soft); margin-bottom: 3px; }
+  .da-tl-head b { color: var(--primary); white-space: nowrap; }
+  .da-tl-cells { display: grid; gap: 2px; }
+  .da-tl-cells i { display: block; height: 14px; border-radius: 3px; background: rgba(26,58,107,0.08); }
+  .da-tl-cells i.on { background: var(--primary); }
+  .da-tl-axis { display: flex; justify-content: space-between; font-size: 10px; color: var(--ink-muted); }
+  /* 充実度の高い日・低い日 */
+  .da-gbar-block { background: var(--surface); border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; }
+  .da-gbar-name { font-size: 12px; font-weight: 700; color: var(--ink-soft); margin-bottom: 4px; }
+  .da-gbar { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .da-gbar-lab { width: 3.6em; font-size: 11px; color: var(--ink-muted); white-space: nowrap; }
+  .da-gbar b { width: 2em; text-align: right; font-size: 13px; color: var(--primary); }
+  /* v11：今の目標・テーマの進み具合・調子の波・次の稽古へ */
+  .da-goal { background: var(--surface); border-left: 4px solid var(--primary); border-radius: 0 10px 10px 0; padding: 8px 12px; margin: 14px 0 0; }
+  .da-goal-k { font-size: 11px; font-weight: 700; color: var(--ink-muted); }
+  .da-goal-t { font-size: 15px; font-weight: 700; color: var(--primary); line-height: 1.5; }
+  .da-goal-s { font-size: 10.5px; color: var(--ink-muted); }
+  .da-fc { background: var(--surface); border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; }
+  .da-fc-name { color: var(--ink-soft); font-size: 13px; }
+  .da-seq i { height: 18px; }
+  .da-tl-cells i.o-good { background: #2a5298; } .da-tl-cells i.o-some { background: #6f9be0; }
+  .da-tl-cells i.o-bad { background: #d9822b; } .da-tl-cells i.o-other { background: #98a3b6; }
+  .da-tl-cells i.m, .da-legend i.m { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.85) 0 2px, transparent 2px 4px); }
+  .da-halves { margin-top: 6px; border-top: 1px dashed rgba(26,58,107,0.15); padding-top: 6px; }
+  .da-half { margin-bottom: 4px; }
+  .da-half-lab { font-size: 11.5px; font-weight: 700; color: var(--ink-soft); margin-bottom: 2px; }
+  .da-half-lab small { font-weight: 400; color: var(--ink-muted); margin-left: 6px; }
+  .da-wave-box { background: var(--surface); border-radius: 10px; padding: 8px 8px 6px; }
+  .da-wave { width: 100%; height: auto; display: block; }
+  /* PCなど横に広い画面で、グラフが縦に大きくなりすぎないように幅を抑える */
+  #diary-analysis { max-width: 640px; margin-left: auto; margin-right: auto; }
+  .da-wave .w-grid { stroke: rgba(26,58,107,0.10); stroke-width: 1; }
+  .da-wave .w-ax { font-size: 8px; fill: var(--ink-muted); }
+  .da-wave .w-tick { stroke: rgba(26,58,107,0.35); stroke-width: 1; }
+  .da-wave .w-q3 { stroke: #2a5298; stroke-width: 2; }
+  .da-wave .w-q1 { stroke: #1f9e89; stroke-width: 2; stroke-dasharray: 4 3; }
+  .da-wave .w-q3-pt { fill: #2a5298; stroke: #fff; stroke-width: 1; }
+  .da-wave .w-q1-pt { fill: #1f9e89; stroke: #fff; stroke-width: 1; }
+  .da-wave .w-cur { stroke: rgba(26,58,107,0.4); stroke-width: 1; }
+  .da-wave .w-hit { fill: transparent; cursor: pointer; }
+  .da-legend i.w-q3-sw { background: #2a5298; height: 3px; width: 14px; vertical-align: 3px; }
+  .da-legend i.w-q1-sw { background: repeating-linear-gradient(90deg, #1f9e89 0 4px, transparent 4px 7px); height: 3px; width: 14px; vertical-align: 3px; }
+  .da-wave-info { font-size: 11.5px; color: var(--ink-soft); margin-top: 4px; min-height: 1.6em; }
+  /* 表示の最適化（v11.1） */
+  .da-box { background: var(--surface); border-radius: 12px; padding: 10px 10px 8px; }
+  .da-box-title { font-size: 12px; font-weight: 700; color: var(--ink-soft); margin-bottom: 2px; }
+  .da-key { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11.5px; color: var(--ink-soft); margin-top: 4px; }
+  .da-key i { display: inline-block; vertical-align: middle; margin-right: 5px; }
+  .da-key .k-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--primary); }
+  .da-key .k-dot.k-multi { background: #fff; border: 2px solid var(--primary); box-sizing: border-box; width: 11px; height: 11px; }
+  .da-key .k-dot { width: 11px; height: 11px; }
+  .da-key .k-line { width: 16px; height: 3px; border-radius: 2px; }
+  .da-key .k-q3 { background: #2a5298; }
+  .da-key .k-q1 { background: repeating-linear-gradient(90deg, #1f9e89 0 5px, transparent 5px 8px); }
+  .da-key .k-q2 { background: repeating-linear-gradient(90deg, #c8691c 0 2px, transparent 2px 4px); }
+  .da-wave .w-q2 { stroke: #c8691c; stroke-width: 2; stroke-dasharray: 1.5 2.5; stroke-linecap: round; }
+  .da-wave .w-q2-pt { fill: #c8691c; stroke: #fff; stroke-width: 1; }
+  .da-wave.hide-q1 .w-q1, .da-wave.hide-q1 .w-q1-pt, .da-wave.hide-q2 .w-q2, .da-wave.hide-q2 .w-q2-pt, .da-wave.hide-q3 .w-q3, .da-wave.hide-q3 .w-q3-pt { display: none; }
+  .da-key-btns button { display: inline-flex; align-items: center; min-height: 30px !important; padding: 0 10px; border: 1px solid rgba(26,58,107,0.25); border-radius: 999px; background: var(--surface); color: var(--ink-soft); font-family: inherit; font-size: 11.5px; cursor: pointer; }
+  .da-key-btns button[aria-pressed="false"] { opacity: .45; text-decoration: line-through; }
+  .da-wave .w-ax { font-size: 11px; }
+  .da-wave .w-date { font-size: 10.5px; fill: var(--ink-muted); }
+  .da-wave .w-grid.w-mid { stroke: rgba(26,58,107,0.22); }
+  .da-wave .w-q3 { stroke-width: 2.5; }
+  .da-theme { display: flex; flex-direction: column; margin: 0 0 8px; }
+  .da-theme-name { font-size: 18px; font-weight: 800; color: var(--primary); line-height: 1.3; }
+  .da-theme-sub { font-size: 11.5px; color: var(--ink-muted); }
+  .da-seq-chart { width: 100%; height: auto; display: block; margin-top: 4px; }
+  .da-seq-chart .s-lane { stroke: rgba(26,58,107,0.12); stroke-width: 1; }
+  .da-seq-chart .s-lane-o { stroke-dasharray: 2 3; }
+  .da-seq-chart .s-lab { font-size: 12.5px; font-weight: 700; fill: var(--ink-soft); }
+  .da-seq-chart .s-lab-o { font-weight: 400; fill: var(--ink-muted); font-size: 11px; }
+  .da-seq-chart .s-path { stroke: rgba(26,58,107,0.35); stroke-width: 1.5; }
+  .da-seq-chart .s-dot { fill: var(--primary); stroke: #fff; stroke-width: 1.5; }
+  .da-seq-chart .s-dot.s-multi { fill: #fff; stroke: var(--primary); stroke-width: 2; }
+  .da-seq-chart .s-dot.s-other { fill: #98a3b6; }
+  .da-seq-chart .s-dot.s-other.s-multi { fill: #fff; stroke: #98a3b6; }
+  .da-seq-chart .w-cur { stroke: rgba(26,58,107,0.4); stroke-width: 1; }
+  .da-seq-chart .w-hit { fill: transparent; cursor: pointer; }
+  .da-cmp { display: flex; align-items: stretch; gap: 8px; margin-top: 8px; }
+  .da-cmp-cell { flex: 1; background: var(--surface); border-radius: 12px; padding: 8px 10px; text-align: center; }
+  .da-cmp-k { font-size: 11.5px; font-weight: 700; color: var(--ink-soft); }
+  .da-cmp-v { font-size: 26px; font-weight: 800; color: var(--primary); line-height: 1.2; }
+  .da-cmp-v small { font-size: 12px; font-weight: 700; margin-left: 2px; }
+  .da-cmp-s { font-size: 10.5px; color: var(--ink-muted); }
+  .da-cmp-arrow { align-self: center; font-size: 18px; color: var(--ink-muted); }
+  .da-cmp-cap { font-size: 11px; color: var(--ink-muted); margin-top: 4px; text-align: center; }
+  .da-next { margin-top: 12px; background: var(--primary); color: #fff; border-radius: 12px; padding: 10px 14px; }
+  .da-next-k { font-size: 11px; font-weight: 700; opacity: .8; }
+  .da-next-q { font-size: 14px; font-weight: 700; line-height: 1.6; }
+  .da-next-s { font-size: 11px; opacity: .85; margin-top: 2px; }
+  /* ===== 日記をつける／仲間の一言 の切り替え ===== */
+  .diary-seg { scroll-margin-top: 170px; display: flex; gap: 4px; padding: 4px; margin: 0 0 16px; background: var(--bg-warm); border: 1px solid var(--border-soft); border-radius: 999px; }
+  .diary-seg button { flex: 1; min-height: 44px !important; border: none; border-radius: 999px; background: transparent; font-family: inherit; font-size: 14px; font-weight: 700; color: var(--ink-soft); display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .diary-seg button.on { background: var(--primary); color: #fff; box-shadow: 0 2px 10px rgba(26,58,107,0.25); }
+  .seg-badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #e0393e; color: #fff; font-size: 11px; line-height: 18px; }
+  .diary-seg button { flex: 1 1 0; min-width: 0; flex-direction: column; gap: 1px; line-height: 1.2; white-space: nowrap; }
+  .seg-main { display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .seg-names { max-width: 100%; padding: 0 6px; font-size: 10px; font-weight: 600; color: var(--primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .diary-pane { display: none; }
+  /* 「仲間の一言」表示中は、剣道日記より下の要素を隠す */
+  #tab-news.peers-mode > .diary-wrap ~ * { display: none !important; }
+  .diary-pane.on { display: block; }
+  .diary-done { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 14px; border-radius: var(--radius-sm); background: rgba(26,58,107,0.06); font-size: 13px; font-weight: 700; color: var(--primary); }
+  .diary-done button { margin-left: auto; min-height: 36px !important; padding: 0 12px; border: 1.5px solid var(--primary); border-radius: 999px; background: var(--surface); color: var(--primary); font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+  /* ===== 仲間の一言 ===== */
+  .hk-wrap { border: 1.5px solid rgba(26,58,107,0.18); border-radius: var(--radius-md); overflow: hidden; background: var(--surface); }
+  .hk-head { display: flex; align-items: center; gap: 6px; padding: 9px 14px; background: rgba(26,58,107,0.06); }
+  .hk-head-title { font-size: 13px; font-weight: 700; color: var(--primary); letter-spacing: .04em; }
+  .hk-head-sub { margin-left: auto; font-size: 10px; color: var(--ink-muted); text-align: right; }
+  .hk-head-title { white-space: nowrap; flex-shrink: 0; }
+  .hk-nudge { padding: 8px 14px 0; font-size: 11px; color: var(--ink-soft); line-height: 1.6; }
+  .hk-nudge span { white-space: nowrap; }
+  .hk-list { padding: 2px 14px; }
+  .hk-item { padding: 7px 0 8px; border-bottom: 1px solid var(--border-soft); }
+  .hk-item:last-child { border-bottom: none; }
+  .hk-item.mine { background: var(--gold-pale); margin: 0 -14px; padding: 7px 14px 8px; }
+  .hk-meta { font-size: 11px; color: var(--ink-muted); display: flex; align-items: center; gap: 6px; min-height: 28px; }
+  .hk-meta-who { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hk-date { color: var(--primary); font-weight: 700; margin-right: 8px; }
+  .hk-name { font-weight: 600; color: var(--ink-soft); }
+  .hk-text { font-size: 13px; color: var(--ink); line-height: 1.6; margin-top: 1px; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+  .hk-text.open { display: block; }
+  .hk-rx { display: flex; gap: 4px; flex-shrink: 0; }
+  .hk-chip { min-height: 26px !important; height: 26px; padding: 0 8px; border: 1.5px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--ink-soft); font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; position: relative; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  .hk-chip::after { content: ''; position: absolute; top: -7px; bottom: -7px; left: 0; right: 0; }
+  .hk-chip.on { border-color: var(--primary); background: rgba(26,58,107,0.08); color: var(--primary); }
+  .hk-chip.hk-count { border: none; background: transparent; padding: 0 5px; gap: 3px; color: var(--ink-soft); }
+  .hk-chip.hk-count.on { background: transparent; color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+  .hk-chip.hk-add { width: 30px; padding: 0; justify-content: center; color: var(--ink-muted); font-size: 14px; }
+  .hk-names { font-size: 11px; color: var(--ink-soft); background: var(--bg-warm); border-radius: 6px; padding: 6px 10px; margin-top: 7px; line-height: 1.6; }
+  .hk-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+  .hk-empty { font-size: 12px; color: var(--ink-muted); padding: 12px 0; text-align: center; }
+
+  /* ===== ヘッダーを低く（Q1を最初の画面に入れるため）===== */
+  body { padding-top: 12px; }
+  .header { display: grid; grid-template-columns: auto 1fr; column-gap: 14px; align-items: center; text-align: left; padding: 16px 18px 14px; margin-bottom: 12px; }
+  .header-kamon { grid-row: 1 / 4; width: 44px; height: 44px; margin: 0; }
+  .header-en { font-size: 9px; letter-spacing: 0.3em; margin-bottom: 2px; }
+  .header-title { font-size: 20px !important; margin-bottom: 2px; }
+  .header-subtitle { margin-bottom: 0; }
+  .tab-bar { margin-bottom: 12px; top: 8px; }
+
+  .my-notice-wrap { margin: 0 0 16px; }
+  .my-notice-body { padding: 8px 12px 10px; border: 1.5px solid var(--border-soft); border-top: none; border-radius: 0 0 var(--radius-sm) var(--radius-sm); background: var(--surface); }
+  .my-notice-label { font-size: 11px; font-weight: 700; color: var(--ink-muted); letter-spacing: .06em; }
+  .my-notice-body .my-text { margin: 2px 0 8px; }
+  .my-notice-body .my-rx { margin: 0; }
+  .my-notice.open { border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+  .my-notice.is-new + .my-notice-body { border-color: var(--gold); }
+  .my-notice { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 40px !important; margin: 0; padding: 8px 12px; border: 1.5px solid var(--border-soft); border-radius: var(--radius-sm); background: var(--surface); color: var(--primary); font-family: inherit; font-size: 12px; font-weight: 700; text-align: left; cursor: pointer; }
+  .my-notice.is-new { border-color: var(--gold); background: var(--gold-pale); color: #8a6200; animation: hkAlertIn .45s cubic-bezier(.22,1.4,.36,1) both; }
+  /* 新着の光：開いて最初に表示したときだけ、光の帯が2回横切って止まる（CSSのみ・枠の外にははみ出さない） */
+  .my-notice { position: relative; overflow: hidden; }
+  .my-notice.shine::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 45%; pointer-events: none; background: linear-gradient(100deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.75) 50%, rgba(255,255,255,0) 100%); transform: translateX(-120%); animation: myShine .9s ease-in-out .5s 2 both; }
+  @keyframes myShine { from { transform: translateX(-120%); } to { transform: translateX(260%); } }
+  .my-notice .go { margin-left: auto; padding-left: 6px; white-space: nowrap; flex-shrink: 0; }
+  .my-cheer { display: inline-block; font-size: 13px; animation: myCheer 1s ease .3s 2; }
+  @keyframes myCheer { 0%,100% { transform: rotate(0) scale(1); } 30% { transform: rotate(-15deg) scale(1.2); } 60% { transform: rotate(10deg) scale(1.1); } }
+  @media (prefers-reduced-motion: reduce) { .my-cheer { animation: none; } }
+  .my-text { font-size: 13px; color: var(--ink); line-height: 1.6; margin-top: 2px; word-break: break-word; }
+  .my-rx { margin: 8px -6px 0; padding: 7px 10px; border-radius: var(--radius-sm); background: rgba(26,58,107,0.06); font-size: 12px; color: var(--ink-soft); line-height: 1.7; }
+  .my-lbl { color: var(--ink-muted); }
+  .my-new { color: var(--ink); }
+
+  /* ===== 公開版：単体ページ ===== */
+  /* 分析：意識したテーマ（タグ＋マス） 色は検証済み：うまく#1d4f9e／少し#5a93e8／できず#c8620e（色覚の違いでも区別でき、記号も併記） */
+  .da-tag-lead { font-size: 13px; color: var(--ink-soft); margin: 2px 0 8px; }
+  .da-tag-lead b { color: var(--primary); }
+  .da-tag-key { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--ink-soft); margin-bottom: 8px; }
+  .da-tag-key span { display: inline-flex; align-items: center; gap: 4px; }
+  .da-tag-key .da-sq { width: 16px; height: 16px; font-size: 10px; cursor: default; }
+  .da-tags { display: flex; flex-direction: column; gap: 8px; }
+  .da-tag-row { background: var(--surface); border-radius: 12px; padding: 10px 12px; }
+  .da-tag-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
+  .da-tag { display: inline-block; padding: 3px 11px; border-radius: 999px; background: rgba(26,58,107,0.09); color: var(--primary); font-size: 13px; font-weight: 700; line-height: 1.5; }
+  .da-tag.mine { background: var(--gold-pale); color: #7a5d00; }
+  .da-tag-n { font-size: 13px; font-weight: 800; color: var(--ink); }
+  .da-tag-run { font-size: 10.5px; font-weight: 700; color: var(--ink-muted); }
+  .da-tag-cells { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .da-sq { width: 26px; height: 26px; min-height: 0 !important; padding: 0; border: none; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; font-family: inherit; font-size: 13px; font-weight: 700; color: #fff; cursor: pointer; line-height: 1; }
+  .da-tag-cells.dense { gap: 3px; }
+  .da-tag-cells.dense .da-sq { width: 20px; height: 20px; font-size: 11px; border-radius: 4px; }
+  .da-sq.r-good { background: #1d4f9e; } .da-sq.r-some { background: #5a93e8; } .da-sq.r-bad { background: #c8620e; }
+  .da-sq.r-other { background: var(--surface); border: 1.5px dashed #9aa3b2; color: var(--ink-muted); }
+  .da-tag-sum { font-size: 11.5px; color: var(--ink-soft); margin-top: 6px; }
+  .da-tag-info { font-size: 11.5px; font-weight: 700; color: var(--primary); margin-top: 3px; min-height: 0; }
+  /* 今週のいい気づき */
+  .hk-weekly { margin: 10px 12px 2px; padding: 11px 13px; border-radius: var(--radius-sm); background: linear-gradient(180deg, #FFFBEA, #FDF6DC); border: 1.5px solid rgba(184,150,12,0.45); }
+  .hk-weekly-k { font-size: 11px; font-weight: 700; color: #8a6d00; letter-spacing: .06em; margin-bottom: 4px; }
+  .hk-weekly-t { font-size: 14px; font-weight: 700; color: var(--ink); line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+  .hk-weekly-m { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 6px; font-size: 11px; color: var(--ink-muted); }
+  .hk-weekly-name { font-weight: 700; color: var(--primary); }
+  .hk-weekly-c { margin-left: auto; font-weight: 700; color: #8a6d00; }
+  .hk-weekly-who { font-size: 10.5px; color: var(--ink-muted); margin-top: 2px; text-align: right; }
+  .site-footer { margin: 28px 0 0; padding: 16px 8px 4px; border-top: 1px solid var(--border); text-align: center; color: var(--ink-muted); }
+  .site-footer-copy { font-size: 11px; letter-spacing: .04em; }
+  .site-footer-note { font-size: 10px; line-height: 1.7; margin-top: 4px; }
+  .site-footer-ver { font-size: 9px; margin-top: 6px; opacity: .6; letter-spacing: .04em; }
+  .diary-mark { width: 24px; height: 24px; flex-shrink: 0; }
+  .header .header-kamon { opacity: 1; }
+  .q4-my-hint { font-size: 11px; color: var(--ink-muted); line-height: 1.6; margin: -2px 0 8px; }
+  /* 分析：過去の一言 */
+  .da-sec-sub { font-size: 11px; font-weight: 500; color: var(--ink-muted); margin-left: 6px; }
+  .da-notes { display: flex; flex-direction: column; gap: 6px; }
+  .da-note-item { background: var(--surface); border-radius: 10px; padding: 8px 10px; }
+  .da-note-item.da-note-more { display: none; }
+  .da-notes.show-all .da-note-item.da-note-more { display: block; }
+  .da-note-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-bottom: 3px; }
+  .da-note-date { font-size: 11.5px; font-weight: 700; color: var(--primary); margin-right: 2px; }
+  .da-note-tag { font-size: 10.5px; color: var(--ink-soft); background: rgba(26,58,107,0.07); border-radius: 999px; padding: 1px 8px; }
+  .da-note-text { font-size: 13px; color: var(--ink); line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+  .da-notes-btn { width: 100%; margin-top: 6px; min-height: 38px !important; border: 1.5px solid rgba(26,58,107,0.3); border-radius: 999px; background: var(--surface); color: var(--primary); font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+  /* 切り替えボタン：幅の狭いスマホでも1行に収まるように */
+  .diary-seg button { font-size: clamp(12px, 3.5vw, 14px); }
+  .diary-seg button, .seg-main { gap: 4px; }
+  @media (max-width: 359px) { .seg-ico { display: none; } }
+  /* タブ3つ：「日記をつける」「仲間の一言」＋新着バッジが1行に収まるように */
+  /* 幅は中身（文字数）に合わせて決め、余った分を3つで等分する */
+  #seg-write, #seg-peers, #seg-ana { flex: 1 1 auto; }
+  #seg-ana { min-width: 60px; } /* 選んだときの丸が小さくなりすぎないように */
+  #seg-peers .seg-names { width: 0; min-width: 100%; } /* 2行目の名前はタブの幅を押し広げない（収まらない分は…で省略） */
+  .diary-seg { gap: 2px; }
+  .diary-seg .seg-badge { min-width: 16px; height: 16px; line-height: 16px; font-size: 10px; padding: 0 4px; }
+  @media (max-width: 400px) { .hk-sub-more { display: none; } }
+  .diary-name-taken { margin-top: 8px; padding: 9px 12px; border-radius: var(--radius-sm); background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; font-size: 12.5px; font-weight: 700; line-height: 1.6; }
+  .diary-name-taken button { display: block; margin-top: 4px; padding: 0; border: none; background: none; color: var(--ink-muted); font-family: inherit; font-size: 11px; font-weight: 500; text-decoration: underline; cursor: pointer; min-height: 0 !important; }
+  .diary-name-hint b { color: var(--red); font-weight: 700; }
+  .diary-name-hint { font-size: 11px; color: var(--ink-muted); line-height: 1.6; margin-top: 6px; }
+  /* 分析：ことばの要約（数えた事実だけで組み立てた文章） */
+  .da-sumi { background: linear-gradient(180deg, #ffffff, #f7faff); border: 1.5px solid rgba(26,58,107,0.2); border-radius: var(--radius-md); padding: 12px 14px; margin: 6px 0 12px; }
+  .da-sumi-k { font-size: 11px; font-weight: 700; color: var(--gold); letter-spacing: .08em; margin-bottom: 4px; }
+  .da-sumi-t { font-size: 14.5px; font-weight: 700; color: var(--primary); line-height: 1.75; }
+  .da-sumi-n { font-size: 10.5px; color: var(--ink-muted); margin-top: 6px; }
+  .da-ana-empty { padding: 18px 4px; text-align: center; font-size: 13px; color: var(--ink-soft); line-height: 1.8; }
+  .da-ana-empty button { margin-top: 8px; min-height: 40px !important; padding: 0 16px; border: 1.5px solid var(--primary); border-radius: 999px; background: var(--surface); color: var(--primary); font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+  /* Q4：基本テーマ／マイテーマ */
+  .q4-group-head { display: flex; align-items: center; gap: 8px; margin: 14px 0 8px; }
+  .q4-group-head:first-of-type { margin-top: 4px; }
+  .q4-group-title { font-size: 11px; font-weight: 700; color: var(--ink-muted); letter-spacing: .08em; }
+  .q4-set-btn { margin-left: auto; min-height: 32px !important; padding: 0 12px; border: 1.5px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--ink-soft); font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; }
+  .q4-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .q4-grid .diary-check-btn { border-radius: 12px; padding: 9px 12px; text-align: left; display: flex; flex-direction: column; gap: 1px; line-height: 1.35; }
+  .q4-main { font-size: 13.5px; font-weight: 700; }
+  .q4-sub { font-size: 10.5px; font-weight: 400; color: var(--ink-muted); }
+  .diary-check-btn.selected .q4-sub { color: rgba(255,255,255,0.82); }
+  .q4-grid .diary-check-btn.q4-empty { border-style: dashed; color: var(--ink-muted); background: var(--bg-warm); cursor: default; font-weight: 400; }
+  .q4-grid .diary-check-btn.q4-empty:active { transform: none; }
+  .my-set { margin-top: 10px; padding: 12px; border: 1.5px solid rgba(26,58,107,0.2); border-radius: var(--radius-md); background: #F4F7FC; }
+  .my-set-title { font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 2px; }
+  .my-set-hint { font-size: 11px; color: var(--ink-muted); line-height: 1.6; margin-bottom: 8px; }
+  .my-set-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .my-set-row label { flex-shrink: 0; width: 5.5em; font-size: 11px; font-weight: 700; color: var(--ink-soft); }
+  .my-set-row input { flex: 1; min-width: 0; padding: 9px 10px !important; }
+  .my-set-btns { display: flex; gap: 8px; margin-top: 8px; }
+  .my-set-btns button { flex: 1; min-height: 42px !important; border-radius: var(--radius-sm); font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .my-set-save { border: none; background: var(--primary); color: #fff; }
+  .my-set-cancel { border: 1.5px solid var(--border); background: var(--surface); color: var(--ink-soft); }
+
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <div class="header">
+    <!-- ロゴ：剣道×AI。面の面金を回路の配線に、物見（目の高さ）を金の節点に -->
+    <svg class="header-kamon" viewBox="0 0 64 64" fill="none" role="img" aria-label="剣道日記"><circle cx="32" cy="32" r="30" fill="#f9f7f4" stroke="#1a3a6b" stroke-width="1.5"/><path d="M15 30 C13 40 11 48 9 55 L20 57 C21 50 22 44 23 38 Z" fill="#1a3a6b"/><path d="M49 30 C51 40 53 48 55 55 L44 57 C43 50 42 44 41 38 Z" fill="#1a3a6b"/><path d="M12.6 44 L21.6 45.2" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7"/><path d="M51.4 44 L42.4 45.2" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7"/><path d="M12.0 48 L21.3 49.2" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7"/><path d="M52.0 48 L42.699999999999996 49.2" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7"/><path d="M11.4 52 L21.0 53.2" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7"/><path d="M52.6 52 L43.0 53.2" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7"/><ellipse cx="32" cy="29" rx="18" ry="20" fill="#1a3a6b"/><ellipse cx="32" cy="30.5" rx="12.2" ry="15" fill="#f9f7f4" stroke="#b8960c" stroke-width="1.4"/><line x1="32" y1="15.8" x2="32" y2="45.2" stroke="#1a3a6b" stroke-width="1.6"/><path d="M23.5 19.9 Q32 21.9 40.5 19.9" stroke="#2a5298" stroke-width="1.2" fill="none"/><path d="M21.4 23.9 Q32 25.9 42.6 23.9" stroke="#2a5298" stroke-width="1.2" fill="none"/><path d="M20.7 33.4 Q32 35.4 43.3 33.4" stroke="#2a5298" stroke-width="1.2" fill="none"/><path d="M22.0 37.4 Q32 39.4 42.0 37.4" stroke="#2a5298" stroke-width="1.2" fill="none"/><path d="M24.8 41.4 Q32 43.4 39.2 41.4" stroke="#2a5298" stroke-width="1.2" fill="none"/><circle cx="26" cy="29.4" r="1.9" fill="#d4ad1a"/><circle cx="38" cy="29.4" r="1.9" fill="#d4ad1a"/><path d="M27.9 29.4 L30.4 29.4 M33.6 29.4 L36.1 29.4" stroke="#d4ad1a" stroke-width="1"/><rect x="26.5" y="47" width="11" height="9" rx="2.2" fill="#1a3a6b"/><line x1="27.5" y1="51.5" x2="36.5" y2="51.5" stroke="#d4ad1a" stroke-width=".9"/><path d="M48.5 8.9 Q48.5 13.5 53.1 13.5 Q48.5 13.5 48.5 18.1 Q48.5 13.5 43.9 13.5 Q48.5 13.5 48.5 8.9 Z" fill="#d4ad1a"/></svg>
+    <div class="header-en">KENDO DIARY</div>
+    <h1 class="header-title">剣道<span>日記</span></h1>
+    <div class="header-subtitle">思考とAIの架け橋</div>
+  </div>
+
+  <div id="tab-news">
+    <div class="diary-wrap">
+      <!-- ニックネーム：保存済みなら表示のみ（変更はできない）。保存されていない端末でだけ入力欄と「決定」を出す -->
+      <div class="diary-who" id="diary-who" style="display:none;">
+        <span class="diary-who-label">ニックネーム</span>
+        <span class="diary-who-name" id="diary-who-name"></span>
+      </div>
+      <div class="diary-name-row" id="diary-name-row">
+        <label class="diary-name-label" for="diary-name">ニックネーム<span style="color:var(--red);margin-left:2px;">*</span></label>
+        <div class="diary-name-inline">
+          <input type="text" id="diary-name" class="diary-name-input" placeholder="ニックネーム（20字まで）" maxlength="20" autocomplete="nickname" oninput="onDiaryNameInput(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmDiaryName();}">
+          <button type="button" class="diary-name-ok" onclick="confirmDiaryName()">決定</button>
+        </div>
+        <div class="diary-name-taken" id="diary-name-taken" style="display:none;"></div>
+        <div class="diary-name-hint">日記はこのニックネームで記録されます。<b>決めたニックネームはあとから変えられません。</b></div>
+      </div>
+
+      <!-- 切り替え：日記をつける／分析／仲間の一言（開いたときは常に「日記をつける」） -->
+      <div class="diary-seg" role="tablist">
+        <button type="button" class="on" id="seg-write" role="tab" aria-selected="true" onclick="hkSwitchPane('write')"><span class="seg-main"><span class="seg-ico">✍</span>日記をつける</span></button>
+        <button type="button" id="seg-ana" role="tab" aria-selected="false" onclick="hkSwitchPane('ana')"><span class="seg-main"><span class="seg-ico">📊</span>分析</span></button>
+        <button type="button" id="seg-peers" role="tab" aria-selected="false" onclick="hkSwitchPane('peers')"><span class="seg-main"><span class="seg-ico">💬</span>仲間の一言<span class="seg-badge" id="seg-badge" style="display:none;"></span></span><span class="seg-names" id="seg-names" style="display:none;"></span></button>
+      </div>
+
+      <!-- ===== 日記をつける ===== -->
+      <div class="diary-pane on" id="pane-write" role="tabpanel">
+      <div class="diary-head">
+        <svg class="diary-mark" viewBox="0 0 64 64" fill="none" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#f9f7f4" stroke="#1a3a6b" stroke-width="1.5"/><path d="M15 30 C13 40 11 48 9 55 L20 57 C21 50 22 44 23 38 Z" fill="#1a3a6b"/><path d="M49 30 C51 40 53 48 55 55 L44 57 C43 50 42 44 41 38 Z" fill="#1a3a6b"/><path d="M12.6 44 L21.6 45.2" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7"/><path d="M51.4 44 L42.4 45.2" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7"/><path d="M12.0 48 L21.3 49.2" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7"/><path d="M52.0 48 L42.699999999999996 49.2" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7"/><path d="M11.4 52 L21.0 53.2" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7"/><path d="M52.6 52 L43.0 53.2" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7"/><ellipse cx="32" cy="29" rx="18" ry="20" fill="#1a3a6b"/><ellipse cx="32" cy="30.5" rx="12.2" ry="15" fill="#f9f7f4" stroke="#b8960c" stroke-width="1.4"/><line x1="32" y1="15.8" x2="32" y2="45.2" stroke="#1a3a6b" stroke-width="1.6"/><path d="M23.5 19.9 Q32 21.9 40.5 19.9" stroke="#2a5298" stroke-width="1.2" fill="none"/><path d="M21.4 23.9 Q32 25.9 42.6 23.9" stroke="#2a5298" stroke-width="1.2" fill="none"/><path d="M20.7 33.4 Q32 35.4 43.3 33.4" stroke="#2a5298" stroke-width="1.2" fill="none"/><path d="M22.0 37.4 Q32 39.4 42.0 37.4" stroke="#2a5298" stroke-width="1.2" fill="none"/><path d="M24.8 41.4 Q32 43.4 39.2 41.4" stroke="#2a5298" stroke-width="1.2" fill="none"/><circle cx="26" cy="29.4" r="1.9" fill="#d4ad1a"/><circle cx="38" cy="29.4" r="1.9" fill="#d4ad1a"/><path d="M27.9 29.4 L30.4 29.4 M33.6 29.4 L36.1 29.4" stroke="#d4ad1a" stroke-width="1"/><rect x="26.5" y="47" width="11" height="9" rx="2.2" fill="#1a3a6b"/><line x1="27.5" y1="51.5" x2="36.5" y2="51.5" stroke="#d4ad1a" stroke-width=".9"/><path d="M48.5 8.9 Q48.5 13.5 53.1 13.5 Q48.5 13.5 48.5 18.1 Q48.5 13.5 43.9 13.5 Q48.5 13.5 48.5 8.9 Z" fill="#d4ad1a"/></svg>
+        <span class="diary-title">剣道日記</span>
+        <!-- 記録する日：押すとカレンダー（今日から7日前まで選べる）。透明な日付欄を重ねて、スマホでも確実に開くようにする -->
+        <label class="diary-date-pick" id="diary-date-pick">
+          <span class="diary-date" id="diary-date"></span>
+          <input type="date" id="diary-date-input" aria-label="記録する日" onchange="onDiaryDateChange(this.value)">
+        </label>
+      </div>
+      <div class="diary-date-past" id="diary-date-past" style="display:none;"></div>
+      <div class="diary-overwrite" id="diary-overwrite" style="display:none;"></div>
+
+      <!-- 前回の一言に届いた反応（1行。「見る」を押すと前回の一言と反応が開く） -->
+      <div class="my-notice-wrap" id="my-notice-wrap" style="display:none;">
+        <button type="button" class="my-notice" id="my-notice" onclick="hkToggleNotice()"></button>
+        <div class="my-notice-body" id="my-notice-body" style="display:none;"></div>
+      </div>
+
+      <!-- Q1 -->
+      <div class="diary-q">
+        <div class="diary-q-label">Q1　今日のコンディションは？<span class="diary-req">必須</span></div>
+        <div class="diary-q-hint">体調・疲れ・気分などを含めた、今日の自分の状態</div>
+        <div class="diary-scale" data-q="q1">
+          <button class="diary-scale-btn" data-v="1" onclick="diaryScale(this,'q1')">1</button>
+          <button class="diary-scale-btn" data-v="2" onclick="diaryScale(this,'q1')">2</button>
+          <button class="diary-scale-btn" data-v="3" onclick="diaryScale(this,'q1')">3</button>
+          <button class="diary-scale-btn" data-v="4" onclick="diaryScale(this,'q1')">4</button>
+          <button class="diary-scale-btn" data-v="5" onclick="diaryScale(this,'q1')">5</button>
+        </div>
+        <div class="diary-scale-ends"><span>1＝かなり悪い</span><span>3＝普通</span><span>5＝かなり良い</span></div>
+      </div>
+
+      <!-- Q2 -->
+      <div class="diary-q">
+        <div class="diary-q-label">Q2　今日の稽古の負荷は？<span class="diary-req">必須</span></div>
+        <div class="diary-q-hint">「実際の稽古量」ではなく、自分が感じた稽古のきつさ</div>
+        <div class="diary-scale" data-q="q2">
+          <button class="diary-scale-btn" data-v="1" onclick="diaryScale(this,'q2')">1</button>
+          <button class="diary-scale-btn" data-v="2" onclick="diaryScale(this,'q2')">2</button>
+          <button class="diary-scale-btn" data-v="3" onclick="diaryScale(this,'q2')">3</button>
+          <button class="diary-scale-btn" data-v="4" onclick="diaryScale(this,'q2')">4</button>
+          <button class="diary-scale-btn" data-v="5" onclick="diaryScale(this,'q2')">5</button>
+        </div>
+        <div class="diary-scale-ends"><span>1＝とても楽</span><span>3＝普通</span><span>5＝とてもきつい</span></div>
+      </div>
+
+      <!-- Q3 -->
+      <div class="diary-q">
+        <div class="diary-q-label">Q3　今日の稽古は充実していた？<span class="diary-req">必須</span></div>
+        <div class="diary-scale" data-q="q3">
+          <button class="diary-scale-btn" data-v="1" onclick="diaryScale(this,'q3')">1</button>
+          <button class="diary-scale-btn" data-v="2" onclick="diaryScale(this,'q3')">2</button>
+          <button class="diary-scale-btn" data-v="3" onclick="diaryScale(this,'q3')">3</button>
+          <button class="diary-scale-btn" data-v="4" onclick="diaryScale(this,'q3')">4</button>
+          <button class="diary-scale-btn" data-v="5" onclick="diaryScale(this,'q3')">5</button>
+        </div>
+        <div class="diary-scale-ends"><span>1＝まったく充実せず</span><span>3＝普通</span><span>5＝とても充実</span></div>
+      </div>
+
+      <!-- Q4：基本テーマ5つ＋マイテーマ（個人設定・最大3つ） -->
+      <div class="diary-q">
+        <div class="diary-q-label">Q4　今日、特に意識したことは？<span class="diary-req">必須</span></div>
+        <div class="diary-q-hint">複数選択可</div>
+        <div class="q4-group-head"><span class="q4-group-title">基本テーマ</span></div>
+        <div class="diary-checks q4-grid" data-q="q4">
+          <button type="button" class="diary-check-btn" data-label="足さばき・姿勢" onclick="diaryCheck(this)"><span class="q4-main">足さばき・姿勢</span><span class="q4-sub">構え、左足、軸など</span></button>
+          <button type="button" class="diary-check-btn" data-label="攻め・間合い" onclick="diaryCheck(this)"><span class="q4-main">攻め・間合い</span><span class="q4-sub">機会、溜め、気位など</span></button>
+          <button type="button" class="diary-check-btn" data-label="打突・技" onclick="diaryCheck(this)"><span class="q4-main">打突・技</span><span class="q4-sub">しかけ、応じ、手元を上げないなど</span></button>
+          <button type="button" class="diary-check-btn" data-label="タイミング・拍子" onclick="diaryCheck(this)"><span class="q4-main">タイミング・拍子</span><span class="q4-sub">切り替え、打ちの機会など</span></button>
+          <button type="button" class="diary-check-btn" data-label="メンタル・集中" onclick="diaryCheck(this)"><span class="q4-main">メンタル・集中</span><span class="q4-sub">気合い、心の静寂、声出しなど</span></button>
+        </div>
+        <div class="q4-group-head"><span class="q4-group-title">マイテーマ（個人設定）</span><button type="button" class="q4-set-btn" onclick="myOpenSettings()">⚙ 設定</button></div>
+        <div class="q4-my-hint" id="q4-my-hint" style="display:none;">一度登録すると、次回からここにいつでも出ます（別の端末でも同じニックネームで表示）</div>
+        <div class="diary-checks q4-grid" data-q="q4" id="q4-my"></div>
+        <div class="my-set" id="my-set" style="display:none;">
+          <div class="my-set-title">マイテーマの設定</div>
+          <div class="my-set-hint">自分だけのテーマを3つまで登録できます（各30字まで）。空欄にすると「設定なし」になります。登録したテーマは別の端末でも同じニックネームで表示されます。</div>
+          <div class="my-set-row"><label for="my-in-0">マイテーマ1</label><input type="text" id="my-in-0" maxlength="30" placeholder="例：あごを引いて左膝を張る"></div>
+          <div class="my-set-row"><label for="my-in-1">マイテーマ2</label><input type="text" id="my-in-1" maxlength="30" placeholder="例：立ち上がりから剣先で中心を取る"></div>
+          <div class="my-set-row"><label for="my-in-2">マイテーマ3</label><input type="text" id="my-in-2" maxlength="30" placeholder="（未設定なら空欄のまま）"></div>
+          <div class="my-set-btns"><button type="button" class="my-set-cancel" onclick="myCloseSettings()">キャンセル</button><button type="button" class="my-set-save" onclick="mySaveSettings()">保存する</button></div>
+        </div>
+      </div>
+
+      <!-- Q5 -->
+      <div class="diary-q">
+        <div class="diary-q-label">Q5　今日、意識したことについて、どんな変化があった？<span class="diary-req">必須</span></div>
+        <div class="diary-q-hint">複数選択可</div>
+        <div class="diary-checks" data-q="q5">
+          <button class="diary-check-btn" onclick="diaryCheck(this)">うまくできた</button>
+          <button class="diary-check-btn" onclick="diaryCheck(this)">少しうまくできた</button>
+          <button class="diary-check-btn" onclick="diaryCheck(this)">うまくできなかった</button>
+          <button class="diary-check-btn" onclick="diaryCheck(this)">新しいことを試した</button>
+          <button class="diary-check-btn" onclick="diaryCheck(this)">気づいたことがあった</button>
+          <button class="diary-check-btn" onclick="diaryCheck(this)">特に変化なし</button>
+        </div>
+      </div>
+
+      <!-- 自由記述 -->
+      <div class="diary-q">
+        <div class="diary-q-label">＋ 今日、残しておきたいことがあれば一言</div>
+        <div class="diary-q-hint">書いた一言は、ニックネーム付きでこの日記を使う全員に公開されます（仲間の一言に表示）</div>
+        <textarea id="diary-free" class="diary-free" maxlength="300" placeholder="自由に記入（全員に公開されます・300字まで）" oninput="formDirty = true;"></textarea>
+      </div>
+
+      <button class="diary-submit-btn" id="diary-submit-btn" onclick="submitDiary()">✦ 記録する</button>
+
+      <!-- 記録後の完了表示（画面は自動で切り替えない） -->
+      <div class="diary-done" id="diary-done" style="display:none;">
+        <span>✓ 記録しました</span>
+        <button type="button" onclick="hkSwitchPane('peers')">💬 仲間の一言を見る ›</button>
+      </div>
+
+      </div>
+
+      <!-- ===== 分析（タブ。開くたびに直近30日分を読み込む） ===== -->
+      <div class="diary-pane" id="pane-ana" role="tabpanel">
+        <div class="da-card" id="diary-analysis"></div>
+      </div>
+
+      <!-- ===== 仲間の一言 ===== -->
+      <div class="diary-pane" id="pane-peers" role="tabpanel">
+      <div class="hk-wrap">
+        <div class="hk-head">
+          <span style="font-size:14px;">💬</span>
+          <span class="hk-head-title">バーチャル部活</span>
+          <span class="hk-head-sub">各自の最新の一言<span class="hk-sub-more">・新しい順</span></span>
+        </div>
+        <div class="hk-weekly" id="hk-weekly" style="display:none;"></div>
+        <div class="hk-nudge" id="hk-nudge" style="display:none;">部活仲間の一言にも、<span>いいねやコメントを送ってみよう</span></div>
+        <div class="hk-list" id="hk-list"><div class="hk-empty">読み込み中…</div></div>
+      </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- フッター：著作権表示 -->
+  <footer class="site-footer">
+    <div class="site-footer-copy">© 2026 MARC PROGRAM. All Rights Reserved.</div>
+    <div class="site-footer-note">本システムの無断転載・複製・商用利用およびコード・デザインの盗用を固く禁じます。</div>
+    <div class="site-footer-ver">ver. 2026-10-30f</div>
+  </footer>
+
+</div>
+<div class="toast" id="toast"></div>
+<script>
+// ============================================================
+//  剣道日記 一般公開版（佐賀学園 MARCシートの剣道日記を単体ページ化）
+//  GAS：剣道日記 一般公開版 GAS v11
+// ============================================================
+const GAS_URL     = 'https://script.google.com/macros/s/AKfycbxHMiudUASz7_xodDd_6G-jBUY57XqFnqa-8eZCUmyddOQmz-R9fiaumAnt5-wm9ppK_g/exec';
+const WRITE_TOKEN = 'kendoDiaryPublic2026';
+// 端末に保存するキー：学校版と同じドメインで公開しても混ざらないよう、別の名前にする
+const LS_NAME     = 'kd_name';
+
+const LS = {
+  get: function(key) { try { return localStorage.getItem(key); } catch(e) { return null; } },
+  set: function(key, val) { try { localStorage.setItem(key, val); return true; } catch(e) { return false; } },
+  remove: function(key) { try { localStorage.removeItem(key); } catch(e) {} }
+};
+
+function todayJST() {
+  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
 }
 
-function doPost(e) {
-  // 同時書き込みによる重複行・取り消し事故を防ぐため、書き込み処理全体をロックで直列化する
-  const lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(20000);
-  } catch (lockErr) {
-    return jsonResponse({ status: 'error', message: 'サーバーが混み合っています。数秒後にもう一度お試しください。' });
-  }
-  try {
-    const data = JSON.parse(e.postData.contents);
-    if (WRITE_TOKEN && data['_token'] !== WRITE_TOKEN) {
-      return jsonResponse({ status: 'error', message: 'Unauthorized' });
+let _toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// 入力漏れの欄を赤枠で示し、見える位置までスクロールする
+function highlightMissing(el) {
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.style.borderColor = 'var(--red, #dc2626)';
+  el.style.boxShadow = '0 0 0 3px rgba(220,38,38,0.15)';
+  setTimeout(function() { el.style.borderColor = ''; el.style.boxShadow = ''; }, 2500);
+}
+
+// GAS への書き込み：返事を読んで、本当に保存できたかを確かめる（失敗を「成功」と表示しない）
+// Content-Type を text/plain にすると、ブラウザの事前確認（CORS preflight）が起きず、GASの返事を読める
+function gasPost(obj) {
+  return fetch(GAS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(Object.assign({ _token: WRITE_TOKEN }, obj))
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(j) {
+    if (!j || j.status !== 'ok') { const e = new Error((j && j.message) || '保存できませんでした'); e.fromServer = true; throw e; }
+    return j;
+  });
+}
+function gasErrMsg(e) { return (e && e.fromServer) ? e.message : '通信できませんでした'; }
+
+function loadNews() {
+  fetch(GAS_URL + '?action=getNews', { method: 'GET' })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if(data.status === 'ok'){
+      hkDisplayNames = data.displayNames || {};
+      renderHitokoto(data.hitokoto || []);
+      renderWeekly(data.weekly || null);
     }
-    delete data['_token'];
-    if (data.action === 'toggleReaction') return handleToggleReaction(data);
-    if (data.action === 'addComment')     return handleAddComment(data);
-    if (data.action === 'saveMyThemes')   return handleSaveMyThemes(data);
-    if (data['記録種別'] === '剣道日記')   return handleSaveDiary(data);
-    return jsonResponse({ status: 'error', message: '受け付けていない記録です' });
-  } catch (err) {
-    return jsonResponse({ status: 'error', message: err.message });
-  } finally {
-    lock.releaseLock();
-  }
+  })
+  .catch(function(){
+    const list = document.getElementById('hk-list');
+    if (list && /読み込み中/.test(list.textContent)) list.innerHTML = '<div class="hk-empty">読み込めませんでした。時間をおいて開き直してください</div>';
+  });
 }
 
-// ============================================================
-//  剣道日記の保存（全員_剣道日記 1枚に追記）
-// ============================================================
-function getDiarySheet_() {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
-  let sh = ss.getSheetByName(DIARY_SHEET);
-  if (!sh) sh = ss.insertSheet(DIARY_SHEET);
-  if (sh.getLastRow() === 0) {
-    sh.appendRow(DIARY_HEADERS);
-    sh.getRange(1, 1, 1, DIARY_HEADERS.length)
-      .setBackground('#1B3A5C').setFontColor('#FFFFFF').setFontWeight('bold');
-    sh.setFrozenRows(1);
+function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ★何度か「ボタンを押しても何も起きない」という報告があったが、リモートでの
+//   原因特定が難しいため、JSエラーが発生した場合に画面上のトーストで
+//   見えるようにする（次回同じ現象が起きた時、エラー内容を確認できるように）。
+// ただし、ブラウザの拡張機能（MetaMask など）が出したエラーはこのページとは無関係なので表示しない。
+function isForeignError(msg, where) {
+  const s = String(msg || '') + ' ' + String(where || '');
+  return /(chrome|moz|safari(-web)?|ms-browser)-extension:\/\//i.test(s)
+      || /MetaMask|ethereum|web3|wallet|Could not establish connection|message port closed|Extension context/i.test(s);
+}
+window.addEventListener('error', function(e) {
+  try {
+    // 他のサイトや拡張機能のスクリプトで起きたエラーは無視（このページのファイル以外）
+    if (e.filename && e.filename.indexOf(location.origin) !== 0 && location.protocol !== 'file:') return;
+    if (isForeignError(e.message, (e.error && e.error.stack) || e.filename)) return;
+    showToast('⚠ エラーが発生しました：' + (e.message || '不明') + '');
+  } catch(_) {}
+});
+window.addEventListener('unhandledrejection', function(e) {
+  try {
+    const r = e.reason;
+    const msg = (r && r.message) || r || '不明';
+    if (isForeignError(msg, r && r.stack)) return;
+    showToast('⚠ 通信エラーが発生しました：' + msg + '');
+  } catch(_) {}
+});
+
+
+document.addEventListener('DOMContentLoaded', function() {
+  loadDiaryName();
+  setDiaryDate();
+  myLoad();
+  loadMyDates();
+  loadNews();
+});
+
+// ===== 剣道日記 =====
+const diaryState = { q1:0, q2:0, q3:0 };
+
+// スケール（Q1〜Q3）選択
+function diaryScale(btn, q) {
+  const group = document.querySelector('.diary-scale[data-q="'+q+'"]');
+  group.querySelectorAll('.diary-scale-btn').forEach(function(b){ b.classList.remove('selected'); });
+  btn.classList.add('selected');
+  diaryState[q] = parseInt(btn.dataset.v);
+  formDirty = true;
+}
+
+// チェックボックス（Q4/Q5）トグル
+function diaryCheck(btn) {
+  btn.classList.toggle('selected');
+  formDirty = true;
+}
+
+// ニックネーム：空白を詰め、記録の区切りに使う「|」は除く
+function normNick(v) {
+  return String(v || '').replace(/[　\s]+/g, '').replace(/\|/g, '').slice(0, 20);
+}
+// 入力中は端末に保存しない（「決定」で確定したときだけ保存する。打ちかけの名前でリアクション等が送られないように）
+function onDiaryNameInput(el) {
+  const t = document.getElementById('diary-name-taken');
+  if (t) t.style.display = 'none';
+}
+
+// ===== 記入者表示 =====
+// ニックネームが保存済み → 「ニックネーム　〇〇」の表示のみ（変更ボタンなし）。未保存 → 入力欄と「決定」を出す。
+let _diaryNameEditing = false;
+function refreshDiaryWho() {
+  const nameEl = document.getElementById('diary-name');
+  const who = document.getElementById('diary-who');
+  const row = document.getElementById('diary-name-row');
+  if (!nameEl || !who || !row) return;
+  const v = normNick(nameEl.value);
+  if (v && !_diaryNameEditing) {
+    document.getElementById('diary-who-name').textContent = v;
+    who.style.display = 'flex';
+    row.style.display = 'none';
   } else {
-    // 見出しに無い列があれば右端に足す（手で列を消した場合などの保険）
-    const lastCol = sh.getLastColumn();
-    const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
-    let col = lastCol;
-    DIARY_HEADERS.forEach(function(h) {
-      if (headers.indexOf(h) >= 0) return;
-      col++;
-      sh.getRange(1, col).setValue(h)
-        .setBackground('#1B3A5C').setFontColor('#FFFFFF').setFontWeight('bold');
-    });
+    who.style.display = 'none';
+    row.style.display = 'block';
   }
-  return sh;
+  if (typeof drawHitokoto === 'function') drawHitokoto();
+  renderWeekly(); // 「（あなた）」の表示を今の名前に合わせる
+}
+// 入力欄を出して入力をうながす。ニックネームはこの端末で一度決めたら変えられないので、決まっていれば何もしない
+function editDiaryName() {
+  if (confirmedNick()) return;
+  _diaryNameEditing = true;
+  refreshDiaryWho();
+  const el = document.getElementById('diary-name');
+  if (el) { el.focus(); el.select(); }
+}
+// ニックネームの決定。新しい名前のときだけ、他の人が使っていないかGASに確認する。
+// 使われていたら「このニックネームは使われています」と出して止める（前に自分が使っていた名前なら、そのまま続けられる）
+// 戻り値：決定できたら true（Promise）
+let _nameChecking = false;
+let _confirmedName = '';
+function confirmedNick() { return _confirmedName || normNick(LS.get(LS_NAME) || ''); }
+function confirmDiaryName(force) {
+  const el = document.getElementById('diary-name');
+  const n = el ? normNick(el.value) : '';
+  if (!n) { showToast('⚠ ニックネームを入力してください'); if (el) el.focus(); return Promise.resolve(false); }
+  el.value = n;
+  const prev = confirmedNick();
+  if (n === prev || force === true) { applyDiaryName(n); return Promise.resolve(true); }
+  if (_nameChecking) return Promise.resolve(false);
+  _nameChecking = true;
+  const ok = document.querySelector('.diary-name-ok');
+  if (ok) { ok.disabled = true; ok.textContent = '確認中'; }
+  const done = function() { _nameChecking = false; if (ok) { ok.disabled = false; ok.textContent = '決定'; } };
+  return fetch(GAS_URL + '?' + new URLSearchParams({ action: 'checkName', name: n, _: Date.now() }).toString())
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      done();
+      if (j && j.status === 'ok' && j.used) {
+        const t = document.getElementById('diary-name-taken');
+        if (t) {
+          t.innerHTML = '「' + escH(n) + '」はすでに使われています。別のニックネームにしてください。'
+            + '<button type="button" onclick="confirmDiaryName(true)">前にこの名前で記録した本人です（この名前で続ける）</button>';
+          t.style.display = 'block';
+        }
+        el.focus();
+        return false;
+      }
+      applyDiaryName(n);
+      return true;
+    })
+    .catch(function() { done(); applyDiaryName(n); return true; }); // 確認できないときは止めない
+}
+function applyDiaryName(n) {
+  const el = document.getElementById('diary-name');
+  if (el) el.value = n;
+  _confirmedName = n;
+  LS.set(LS_NAME, n);
+  const t = document.getElementById('diary-name-taken');
+  if (t) t.style.display = 'none';
+  _diaryNameEditing = false;
+  hkJustSeen = null; hkNoticeOpen = false;
+  daHide();          // 前のニックネームの分析が残らないように閉じる
+  myCloseSettings();
+  refreshDiaryWho();
+  hkLoadMyComments();
+  myLoad();
+  loadMyDates();
 }
 
-function handleSaveDiary(data) {
-  const name = normalizeName(data['氏名']);
-  if (!name) return jsonResponse({ status: 'error', message: 'ニックネームがありません' });
-  if (name.length > NAME_MAX) return jsonResponse({ status: 'error', message: 'ニックネームは' + NAME_MAX + '字以内にしてください' });
-  if (name.indexOf('|') >= 0) return jsonResponse({ status: 'error', message: 'ニックネームに「|」は使えません' });
+// 今日の日付をタイトル横に表示（例：9/3(水)）
+// ===== 記録する日（カレンダーで今日から7日前まで選べる。ふだんは今日） =====
+const BACKDATE_DAYS = 7; // GAS の BACKDATE_DAYS と同じ
+let diaryDate = '';      // 'yyyy-mm-dd'（日本時間）
+let diaryDateChosen = false; // 本人がカレンダーで今日以外を選んだか（選んでいなければ、記録の瞬間の「今日」を使う）
+function jstKey(offsetDays) {
+  return new Date(Date.now() + (offsetDays || 0) * 86400000).toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
+}
+function dateLabel(key) {
+  const p = String(key).split('-').map(Number);
+  const d = new Date(p[0], p[1] - 1, p[2]);
+  return p[1] + '/' + p[2] + '(' + ['日','月','火','水','木','金','土'][d.getDay()] + ')';
+}
+function setDiaryDate(key) {
+  const today = jstKey(0), min = jstKey(-BACKDATE_DAYS);
+  if (!key || !/^\d{4}-\d{2}-\d{2}$/.test(key) || key > today || key < min) key = today;
+  diaryDate = key;
+  diaryDateChosen = key !== today;
+  const el = document.getElementById('diary-date');
+  const inp = document.getElementById('diary-date-input');
+  const past = document.getElementById('diary-date-past');
+  if (inp) { inp.min = min; inp.max = today; inp.value = key; }
+  if (el) { el.textContent = dateLabel(key) + ' 📅'; el.classList.toggle('past', key !== today); }
+  if (past) {
+    if (key !== today) {
+      past.innerHTML = '<span>' + dateLabel(key) + 'の分として記録します</span><button type="button" onclick="onDiaryDateChange(\'\')">今日に戻す</button>';
+      past.style.display = 'flex';
+    } else {
+      past.style.display = 'none';
+    }
+  }
+  if (typeof updateOverwrite === 'function') updateOverwrite();
+}
+// ページを開いたまま日付が変わったとき、表示の「今日」を合わせる（選んだ日付はそのまま）
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') setDiaryDate(diaryDateChosen ? diaryDate : '');
+});
+// ===== 記録済みの日（上書きの表示） =====
+let myDates = [];        // 本人が記録済みの日（'yyyy-mm-dd'）。GASから取得し、記録したら足す
+let myRecs = {};         // 記録済みの日の内容 {日付: {q1,q2,q3,q4:[],q5:[],text}}（ページを開いたときの1回の取得で受け取る）
+let formDirty = false;   // 本人が入力欄をさわったか
+let formPrefilledFor = ''; // 記録済みの内容を入れている日（'' なら入れていない）
+let myDatesName = '';
+function loadMyDates() {
+  const name = confirmedNick();
+  myDates = []; myRecs = {}; myDatesName = name;
+  updateOverwrite();
+  if (!name) return;
+  fetch(GAS_URL + '?' + new URLSearchParams({ action: 'getMyDates', name: name, _: Date.now() }).toString())
+  .then(function(r) { return r.json(); })
+  .then(function(j) {
+    if (confirmedNick() !== name || !j || j.status !== 'ok' || !Array.isArray(j.dates)) return;
+    j.dates.forEach(function(k) { if (myDates.indexOf(k) < 0) myDates.push(k); });
+    if (j.recs && typeof j.recs === 'object') Object.keys(j.recs).forEach(function(k) { myRecs[k] = j.recs[k]; });
+    updateOverwrite();
+    applyRecordForDate(currentRecordKey(), false); // 本人がまだ何も入力していなければ、今日の記録済みの内容を入れる
+  })
+  .catch(function() {});
+}
+// 記録済みの日を選んだら、その日の内容を入力欄に入れる（通信はしない：開いたときに受け取った内容を使う）
+// fromUser=true は本人が日付を選んだとき（入力途中でも、その日の内容に入れ替える）
+function applyRecordForDate(key, fromUser) {
+  const rec = myRecs[key];
+  if (rec) {
+    if (!fromUser && formDirty) return;
+    fillDiaryForm(rec);
+    formPrefilledFor = key;
+    return;
+  }
+  // 記録の無い日に切り替えた：前の日の内容を自動で入れていたなら消す（本人が書き足していれば残す）
+  if (formPrefilledFor && !formDirty) resetDiaryForm();
+  formPrefilledFor = '';
+}
+function fillDiaryForm(rec) {
+  resetDiaryForm();
+  ['q1', 'q2', 'q3'].forEach(function(q) {
+    const v = rec[q];
+    const b = v ? document.querySelector('.diary-scale[data-q="' + q + '"] .diary-scale-btn[data-v="' + v + '"]') : null;
+    if (b) { b.classList.add('selected'); diaryState[q] = v; }
+  });
+  const q4 = rec.q4 || [];
+  document.querySelectorAll('.diary-checks[data-q="q4"] .diary-check-btn').forEach(function(b) {
+    const v = b.dataset.my ? 'マイ:' + b.dataset.my : (b.dataset.label || '');
+    if (v && q4.indexOf(v) >= 0) b.classList.add('selected');
+  });
+  const q5 = rec.q5 || [];
+  document.querySelectorAll('.diary-checks[data-q="q5"] .diary-check-btn').forEach(function(b) {
+    if (q5.indexOf(b.textContent.trim()) >= 0) b.classList.add('selected');
+  });
+  const free = document.getElementById('diary-free');
+  if (free) free.value = rec.text || '';
+  formDirty = false;
+}
 
-  const line  = function(v, max) { return String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').trim().slice(0, max); };
-  const scale = function(v) { const n = parseInt(v, 10); return (n >= 1 && n <= 5) ? n : ''; };
-  const today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
-  // 記録日：今日から BACKDATE_DAYS 日前までは、選んだ日で記録できる（書き忘れた日の分）。それ以外は今日
-  const minDate = Utilities.formatDate(new Date(Date.now() - BACKDATE_DAYS * 86400000), 'Asia/Tokyo', 'yyyy-MM-dd');
-  let date = String(data['記録日'] || '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > today || date < minDate) date = today;
+function currentRecordKey() { return diaryDateChosen ? diaryDate : jstKey(0); }
+function updateOverwrite() {
+  const box = document.getElementById('diary-overwrite');
+  const btn = document.getElementById('diary-submit-btn');
+  const key = currentRecordKey();
+  const done = !!key && myDates.indexOf(key) >= 0;
+  if (box) {
+    if (done) {
+      box.textContent = '⚠ ' + dateLabel(key) + 'はすでに記録済みです。記録すると、この日の記録は上書きされます。';
+      box.style.display = 'block';
+    } else {
+      box.style.display = 'none';
+    }
+  }
+  if (btn && !btn.disabled) btn.textContent = done ? '✦ 上書きして記録する' : '✦ 記録する';
+}
 
-  const q4v = line(data['Q4意識したこと'], LIST_MAX), q5v = line(data['Q5変化'], LIST_MAX);
-  const textv = String(data['一言'] == null ? '' : data['一言']).trim().slice(0, TEXT_MAX);
-  // Q1〜Q5は必須
-  const missing = [];
-  if (!scale(data['Q1コンディション'])) missing.push('Q1');
-  if (!scale(data['Q2負荷'])) missing.push('Q2');
-  if (!scale(data['Q3充実度'])) missing.push('Q3');
-  if (!q4v) missing.push('Q4');
-  if (!q5v) missing.push('Q5');
-  if (missing.length) return jsonResponse({ status: 'error', message: missing.join('・') + 'が未入力です' });
-  const row = {
-    '記録種別': '剣道日記',
-    '氏名': safeCell_(name),
-    '記録日': date,
-    'Q1コンディション': scale(data['Q1コンディション']),
-    'Q2負荷': scale(data['Q2負荷']),
-    'Q3充実度': scale(data['Q3充実度']),
-    'Q4意識したこと': safeCell_(q4v),
-    'Q5変化': safeCell_(q5v),
-    '一言': safeCell_(textv),
-    'timestamp': safeCell_(line(data['timestamp'], TS_MAX)), // 端末の時刻（参考）。数式として入らないよう文字列で保存
-    '受信日時': Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss')
+function onDiaryDateChange(v) {
+  const today = jstKey(0), min = jstKey(-BACKDATE_DAYS);
+  if (v && (v > today || v < min)) { showToast('⚠ 選べるのは今日から' + BACKDATE_DAYS + '日前までです'); setDiaryDate(v); return; }
+  setDiaryDate(v);
+  applyRecordForDate(currentRecordKey(), true);
+  if (myDates.indexOf(currentRecordKey()) >= 0) showToast('⚠ ' + dateLabel(currentRecordKey()) + 'は記録済みです。前の内容を表示しました（記録すると上書き）');
+}
+
+// 起動時：端末に保存したニックネームを復元
+function loadDiaryName() {
+  const nameEl = document.getElementById('diary-name');
+  if (!nameEl) return;
+  const cached = normNick(LS.get(LS_NAME) || '');
+  if (cached) { nameEl.value = cached; _confirmedName = cached; }
+  refreshDiaryWho();
+}
+
+function currentNick() {
+  return normNick((document.getElementById('diary-name') || {}).value || '');
+}
+
+// 提出（分析は出さない。分析は「分析を見る」ボタンで別に開く）
+function submitDiary() {
+  const name = currentNick();
+  if (!name) { showToast('⚠ ニックネームを入力してください'); editDiaryName(); return; }
+  if (_diaryNameEditing || name !== confirmedNick()) {
+    confirmDiaryName().then(function(ok) { if (ok) submitDiary(); });
+    return;
+  }
+
+  // Q4：基本テーマは名前そのまま、マイテーマは「マイ:〇〇」として記録する
+  const q4 = Array.from(document.querySelectorAll('.diary-checks[data-q="q4"] .diary-check-btn.selected'))
+    .map(function(b){ return b.dataset.my ? 'マイ:' + b.dataset.my : (b.dataset.label || b.textContent.trim()); })
+    .filter(function(x, i, a){ return x && a.indexOf(x) === i; });
+  const q5 = Array.from(document.querySelectorAll('.diary-checks[data-q="q5"] .diary-check-btn.selected'))
+    .map(function(b){ return b.textContent.trim(); });
+  const free = (document.getElementById('diary-free').value || '').trim().slice(0, 300);
+  // Q1〜Q5は必須：未入力の最初の質問へスクロールして知らせる
+  const need = [
+    { ok: !!diaryState.q1, q: 'Q1', el: document.querySelector('.diary-scale[data-q="q1"]') },
+    { ok: !!diaryState.q2, q: 'Q2', el: document.querySelector('.diary-scale[data-q="q2"]') },
+    { ok: !!diaryState.q3, q: 'Q3', el: document.querySelector('.diary-scale[data-q="q3"]') },
+    { ok: q4.length > 0,   q: 'Q4', el: document.querySelector('.diary-checks[data-q="q4"]') },
+    { ok: q5.length > 0,   q: 'Q5', el: document.querySelector('.diary-checks[data-q="q5"]') }
+  ];
+  const miss = need.filter(function(x) { return !x.ok; });
+  if (miss.length) {
+    showToast('⚠ ' + miss.map(function(x) { return x.q; }).join('・') + 'が未入力です');
+    miss.forEach(function(x) {
+      const box = x.el && x.el.closest('.diary-q');
+      if (box) { box.classList.add('missing'); setTimeout(function() { box.classList.remove('missing'); }, 3000); }
+    });
+    const first = miss[0].el && miss[0].el.closest('.diary-q');
+    if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+
+  const btn = document.getElementById('diary-submit-btn');
+  const label = btn.innerHTML;
+  btn.textContent = '送信中…';
+  btn.disabled = true;
+
+  const data = {
+    記録種別: '剣道日記',
+    氏名: name,
+    記録日: diaryDateChosen ? diaryDate : todayJST(), // ページを開いたまま日付が変わっても、選んでいなければその日の今日
+    Q1コンディション: diaryState.q1 || '',
+    Q2負荷: diaryState.q2 || '',
+    Q3充実度: diaryState.q3 || '',
+    Q4意識したこと: q4.join('・'),
+    Q5変化: q5.join('・'),
+    一言: free,
+    timestamp: new Date().toLocaleString('ja-JP')
   };
-
-  const sh = getDiarySheet_();
-  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
-  // 上書き：同じニックネーム・同じ記録日の行があれば消す（下から消すので行番号がずれない）
-  const iName = headers.indexOf('氏名'), iDate = headers.indexOf('記録日');
-  let replaced = 0;
-  if (iName >= 0 && iDate >= 0 && sh.getLastRow() >= 2) {
-    const nR = sh.getLastRow() - 1;
-    const names = sh.getRange(2, iName + 1, nR, 1).getDisplayValues();
-    const dates = sh.getRange(2, iDate + 1, nR, 1).getValues();
-    for (let i = nR - 1; i >= 0; i--) {
-      if (normalizeName(names[i][0]) !== name) continue;
-      const dms = toMillis_(dates[i][0]);
-      if (dms && Utilities.formatDate(new Date(dms), 'Asia/Tokyo', 'yyyy-MM-dd') === date) { sh.deleteRow(i + 2); replaced++; }
-    }
-  }
-  sh.appendRow(headers.map(function(h) { return row.hasOwnProperty(h) ? row[h] : ''; }));
-  return jsonResponse({ status: 'ok', date: date, replaced: replaced });
-}
-
-// ============================================================
-//  getNews：仲間の一言＋表示名だけを返す
-// ============================================================
-function handleGetNews(callback) {
-  try {
-    const ss = SpreadsheetApp.openById(SHEET_ID);
-    const result = { status: 'ok' };
-    try {
-      result.hitokoto = buildHitokoto_(ss);
-      try { result.weekly = buildWeeklyPick_(ss); } catch (e2) { console.warn('今週のいい気づき失敗:', e2); result.weekly = null; }
-      result.displayNames = getDisplayNames_(ss);
-    } catch (e) { console.warn('一言取得失敗:', e); result.hitokoto = []; result.displayNames = {}; }
-    return respond_(result, callback);
-  } catch (err) {
-    return respond_({ status: 'error', message: err.message }, callback);
-  }
-}
-
-// 日時の値（Date または "2026/9/3 18:13:25" / "2026-09-03" 形式の文字列）をミリ秒に変換
-function toMillis_(v) {
-  if (v instanceof Date) return v.getTime();
-  const s = String(v || '').trim();
-  if (!s) return 0;
-  const m = s.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
-  if (!m) return 0;
-  // 日本時間として解釈する（GASプロジェクトのタイムゾーン設定に左右されないように）
-  return Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)) - 9 * 3600 * 1000;
-}
-
-// ミリ秒 → "9/27(日)"
-function formatDiaryDate_(ms) {
-  if (!ms) return '';
-  const d = new Date(ms);
-  const dow = ['', '月', '火', '水', '木', '金', '土', '日'][+Utilities.formatDate(d, 'Asia/Tokyo', 'u')];
-  return Utilities.formatDate(d, 'Asia/Tokyo', 'M/d') + '(' + dow + ')';
-}
-
-// 「全員_剣道日記」から一言が空でない行を集め、新しい順・各自の最新1件だけ返す
-function buildHitokoto_(ss) {
-  const sheet = ss.getSheetByName(DIARY_SHEET);
-  if (!sheet || sheet.getLastRow() < 2) return [];
-  const lastCol = sheet.getLastColumn();
-  const n       = sheet.getLastRow() - 1;
-  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
-  const vals    = sheet.getRange(2, 1, n, lastCol).getValues();
-  const disp    = sheet.getRange(2, 1, n, lastCol).getDisplayValues();
-  const iName = headers.indexOf('氏名');
-  const iText = headers.indexOf('一言');
-  const iDate = headers.indexOf('記録日');
-  const iRecv = headers.indexOf('受信日時');
-  const iTs   = headers.indexOf('timestamp');
-  if (iName < 0 || iText < 0) return [];
-
-  const list = [];
-  for (let r = 0; r < n; r++) {
-    const text = String(disp[r][iText] || '').trim();
-    if (!text) continue;
-    const name = normalizeName(disp[r][iName]);
-    if (!name) continue;
-    let ms = iRecv >= 0 ? toMillis_(vals[r][iRecv]) : 0;
-    if (!ms && iTs >= 0)   ms = toMillis_(vals[r][iTs]);
-    if (!ms && iDate >= 0) ms = toMillis_(vals[r][iDate]);
-    const dateMs = iDate >= 0 ? toMillis_(vals[r][iDate]) : 0;
-    list.push({ name: name, text: text, ms: ms, dateMs: dateMs || ms, row: r });
-  }
-  list.sort(function(a, b) { return (b.ms - a.ms) || (b.row - a.row); });
-
-  const seen = {};
-  const out  = [];
-  list.forEach(function(x) {
-    if (seen[x.name]) return;
-    seen[x.name] = true;
-    out.push({
-      id: x.name + '|' + x.ms,          // リアクション・コメントの対象ID（一言ごとに一意）
-      name: x.name,
-      text: x.text,
-      date: formatDiaryDate_(x.dateMs),
-      reactions: { nice: [], wakaru: [], sanko: [] },
-      lastRx: { nice: 0, wakaru: 0, sanko: 0 },
-      rxAt: { nice: {}, wakaru: {}, sanko: {} }
-    });
+  gasPost(data)
+  .then(function(){
+    hkAfterSubmit(name, free, data['記録日']);
+    resetDiaryForm();
+    if (myDates.indexOf(data['記録日']) < 0) myDates.push(data['記録日']);
+    myRecs[data['記録日']] = { q1: data.Q1コンディション, q2: data.Q2負荷, q3: data.Q3充実度, q4: q4.slice(), q5: q5.slice(), text: free };
+    btn.disabled = false;
+    setDiaryDate(); // 次の記録は今日から
+    formPrefilledFor = ''; applyRecordForDate(currentRecordKey(), false); // 今日が記録済みなら、その内容を表示
+    showToast('✓ 記録しました！');
+    updateOverwrite();
+  })
+  .catch(function(e){
+    // 入力した内容は消さずに残す（もう一度押せば送れる）
+    showToast('⚠ 記録できませんでした（' + gasErrMsg(e) + '）。もう一度お試しください');
+    btn.innerHTML = label; btn.disabled = false;
   });
+}
 
-  const rs = ss.getSheetByName('リアクション');
-  if (rs && rs.getLastRow() >= 2) {
-    const map = {};
-    out.forEach(function(o) { map[o.id] = o; });
-    const rv = rs.getRange(2, 1, rs.getLastRow() - 1, 4).getDisplayValues();
-    rv.forEach(function(row) {
-      const o = map[row[0]];
-      if (!o || !o.reactions[row[1]]) return;
-      const who = row[2];
-      if (who && o.reactions[row[1]].indexOf(who) < 0) o.reactions[row[1]].push(who);
-      const t = toMillis_(row[3]);
-      if (t > o.lastRx[row[1]]) o.lastRx[row[1]] = t;
-      if (who && t > (o.rxAt[row[1]][who] || 0)) o.rxAt[row[1]][who] = t;
+// 「分析」タブを開いたとき：記録しなくても、いつでも本人の記録を振り返れる（開くたびに最新を読み込む）
+function openAnalysis() {
+  const el = document.getElementById('diary-analysis');
+  if (!el) return;
+  const name = confirmedNick();
+  if (!name || _diaryNameEditing) {
+    daReq++;
+    el.innerHTML = daHead() + '<div class="da-ana-empty">ニックネームを決めると、<br>あなたの記録の分析がここに出ます。<br><button type="button" onclick="hkSwitchPane(\'write\');editDiaryName();">ニックネームを入力する</button></div>';
+    return;
+  }
+  daLoad(name);
+}
+
+// ===== 日記の分析（直近30日分。期間の切り替えはなし） =====
+// GAS の analyzeDiary が数えた結果をそのまま表示する（文章による推測はしない）。
+// 範囲は日付ではなく「直近の記録7回分」（記録のない日があっても空にならない）
+const DA_DAYS = 30; // 分析の範囲（日数）。GAS の ANALYZE_RANGE_DAYS と同じ
+let daName = '', daReq = 0;
+function daEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; });
+}
+// ニックネームを変えたとき：前の人の分析を残さない（分析タブを開いていれば新しい名前で読み直す）
+function daHide() {
+  daReq++;
+  const el = document.getElementById('diary-analysis');
+  if (el) el.innerHTML = '';
+  if (daPaneOn()) openAnalysis();
+}
+function daPaneOn() { return (document.getElementById('pane-ana') || {}).className === 'diary-pane on'; }
+function daHead() {
+  return '<div class="da-head">📊 日記の分析</div>';
+}
+function daLoad(name) {
+  const el = document.getElementById('diary-analysis');
+  if (!el) return;
+  daName = String(name || '').replace(/[　\s]+/g, '');
+  const req = ++daReq; // 続けて押したとき、古い結果で上書きしない
+  el.innerHTML = daHead() + '<div class="da-meta">分析中…</div>';
+  fetch(GAS_URL + '?' + new URLSearchParams({ action: 'analyzeDiary', name: daName, days: String(DA_DAYS), _: Date.now() }).toString())
+    .then(function(res) { return res.text(); })
+    .then(function(text) {
+      if (req !== daReq) return;
+      const json = JSON.parse(text);
+      if (json.status !== 'ok') throw new Error(json.message || 'error');
+      el.innerHTML = daHead() + daRender(json);
+    })
+    .catch(function() {
+      if (req !== daReq) return;
+      el.innerHTML = daHead() + '<div class="da-meta">分析を読み込めませんでした。時間をおいてもう一度お試しください。</div>';
+    });
+}
+function daLabel(s) { return String(s || '').replace(/^(マイ|その他):/, ''); } // マイテーマは名前だけ出す
+function daNum(v) { return (v == null) ? '—' : Number(v).toFixed(1); }
+
+// 仲間からの反応
+function daPeers(d) {
+  const p = d.peers;
+  if (!p) return '';
+  const rx = p.reactions || {};
+  const types = (typeof HK_TYPES !== 'undefined') ? HK_TYPES : [ { k: 'nice', icon: '👍', label: 'ナイス' }, { k: 'wakaru', icon: '🤝', label: 'わかる' }, { k: 'sanko', icon: '💡', label: '参考になる' } ];
+  const totalRx = types.reduce(function(a, t) { return a + (rx[t.k] || 0); }, 0);
+  let h = '<div class="da-sec"><div class="da-sec-title">' + (d.notes === undefined ? '③' : '④') + ' 仲間からの反応</div>';
+  if (!totalRx && !p.commentTotal) return h + '<div class="da-row">この範囲の反応はまだありません。</div></div>';
+  h += '<div class="da-rx">' + types.map(function(t) {
+    return '<div><span class="da-rx-icon">' + t.icon + '</span><b>' + (rx[t.k] || 0) + '</b><small>' + t.label + '</small></div>';
+  }).join('') + '</div>';
+  if (p.reactors && p.reactors.length) {
+    h += '<div class="da-sub-title">反応をくれた仲間</div>' + daHBars(p.reactors.map(function(r) { return { label: r.name, value: r.count }; }), '回');
+  }
+  if (p.commentTotal) {
+    h += '<div class="da-sub-title">💬 コメント ' + p.commentTotal + '件' + (p.commentTotal > p.comments.length ? '（新しい' + p.comments.length + '件を表示）' : '') + '</div>';
+    p.comments.forEach(function(c) {
+      h += '<div class="da-cm"><div class="da-cm-text">' + daEsc(c.text) + '</div><div class="da-cm-meta">' + daEsc(c.from) + '　' + daEsc(c.date) + '</div></div>';
     });
   }
-  return out;
+  return h + '</div>';
 }
 
-// ============================================================
-//  今週のいい気づき：直近7日（記録日が今日から6日前まで）の一言で、💡を押した人がいちばん多いもの1件
-//  対象IDは buildHitokoto_ と同じ「名前|受信日時のミリ秒」。最新の一言でなくなっていても対象になる
-// ============================================================
-const WEEKLY_DAYS = 7;
-function buildWeeklyPick_(ss) {
-  const sheet = ss.getSheetByName(DIARY_SHEET);
-  const rs = ss.getSheetByName('リアクション');
-  if (!sheet || sheet.getLastRow() < 2 || !rs || rs.getLastRow() < 2) return null;
-  const lastCol = sheet.getLastColumn();
-  const n = sheet.getLastRow() - 1;
-  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
-  const vals = sheet.getRange(2, 1, n, lastCol).getValues();
-  const disp = sheet.getRange(2, 1, n, lastCol).getDisplayValues();
-  const iName = headers.indexOf('氏名'), iText = headers.indexOf('一言'), iDate = headers.indexOf('記録日');
-  const iRecv = headers.indexOf('受信日時'), iTs = headers.indexOf('timestamp');
-  if (iName < 0 || iText < 0 || iDate < 0) return null;
-  const today = new Date();
-  const fromKey = Utilities.formatDate(new Date(today.getTime() - (WEEKLY_DAYS - 1) * 86400000), 'Asia/Tokyo', 'yyyy-MM-dd');
-  const toKey = Utilities.formatDate(today, 'Asia/Tokyo', 'yyyy-MM-dd');
-  const cand = {};
-  for (let r = 0; r < n; r++) {
-    const text = String(disp[r][iText] || '').trim();
-    const name = normalizeName(disp[r][iName]);
-    if (!text || !name) continue;
-    const dms = toMillis_(vals[r][iDate]);
-    if (!dms) continue;
-    const key = Utilities.formatDate(new Date(dms), 'Asia/Tokyo', 'yyyy-MM-dd');
-    if (key < fromKey || key > toKey) continue;
-    let ms = iRecv >= 0 ? toMillis_(vals[r][iRecv]) : 0;
-    if (!ms && iTs >= 0) ms = toMillis_(vals[r][iTs]);
-    if (!ms) ms = dms;
-    cand[name + '|' + ms] = { name: name, text: text, dms: dms, ms: ms, who: [] };
-  }
-  rs.getRange(2, 1, rs.getLastRow() - 1, 3).getDisplayValues().forEach(function(row) {
-    const c = cand[row[0]];
-    if (!c || row[1] !== 'sanko') return;
-    const w = normalizeName(row[2]);
-    if (w && c.who.indexOf(w) < 0) c.who.push(w);
+// 横棒グラフ（1系列）：items = [{label, value}]
+function daHBars(items, unit) {
+  const max = Math.max.apply(null, items.map(function(x) { return x.value; }).concat([1]));
+  return '<div class="da-hbars">' + items.map(function(x) {
+    const pct = x.value ? Math.max(3, Math.round(x.value / max * 100)) : 0;
+    return '<div class="da-hbar-row"><div class="da-hbar-label"><span>' + daEsc(x.label) + '</span><b>' + x.value + (unit || '') + '</b></div>'
+      + '<div class="da-hbar-track"><div class="da-hbar" style="width:' + pct + '%"></div></div></div>';
+  }).join('') + '</div>';
+}
+
+// Q5 の結果（1日を1つに決めたもの）の色
+const DA_OUTCOMES = [
+  { k: 'good',  label: 'うまくできた',       short: 'うまく',   cls: 'o-good' },
+  { k: 'some',  label: '少しうまくできた',   short: '少し',     cls: 'o-some' },
+  { k: 'bad',   label: 'うまくできなかった', short: 'できず',   cls: 'o-bad' },
+  { k: 'other', label: 'それ以外',           short: 'それ以外', cls: 'o-other' }
+];
+function daOutcomeCls(k) { const o = DA_OUTCOMES.find(function(x) { return x.k === k; }); return o ? o.cls : ''; }
+
+// 今のテーマ：この期間に剣道日記のQ4でいちばん多く選んだ項目（同じ日数なら最近選んだ方）
+function daGoal(d) {
+  if (!d.focus || !d.focus.length) return '';
+  return '<div class="da-goal"><div class="da-goal-k">🎯 今のテーマ</div><div class="da-goal-t">' + daEsc(daLabel(d.focus[0].label)) + '</div>'
+    + '<div class="da-goal-s">この期間にQ4でいちばん多く選んだ項目（' + d.focus[0].count + '日）</div></div>';
+}
+
+// ② 今のテーマの進み具合：そのテーマを選んだ日だけを古い順に、Q5の結果ごとの段に点で並べる
+//   段（上から）：うまくできた／少しうまくできた／うまくできなかった／それ以外。色ではなく「高さ」で結果を表す
+const DA_LANES = [
+  { k: 'good',  label: 'うまく' },
+  { k: 'some',  label: '少し' },
+  { k: 'bad',   label: 'できず' },
+  { k: 'other', label: 'その他' }
+];
+let daSeqData = null;
+// 意識したテーマ：テーマごとに1行。選んだ日を1マスずつ、その日のQ5の結果で色分けして日付順に並べる（ユニットチャート）
+// 小さい回数は割合ではなく「回数そのもの」を見せる。色だけに頼らず、マスの中に ◎○× の記号も入れる
+const DA_TAG_RES = {
+  good:  { label: 'うまくできた', mark: '◎' },
+  some:  { label: '少しできた',   mark: '○' },
+  bad:   { label: 'できなかった', mark: '×' },
+  other: { label: '記入なし・その他', mark: '' }
+};
+let daTagData = [];
+function daFocus(d) {
+  if (!d.focus || !d.focus.length) return '';
+  daTagData = d.focus;
+  const top = d.focus[0];
+  let h = '<div class="da-sec"><div class="da-sec-title">② 意識したテーマ</div>'
+    + '<div class="da-tag-lead">いちばん意識したのは「<b>' + daEsc(daLabel(top.label)) + '</b>」（記録' + d.days + '回のうち' + top.count + '回）</div>'
+    + '<div class="da-tag-key">' + ['good', 'some', 'bad', 'other'].map(function(k) {
+        return '<span><i class="da-sq r-' + k + '">' + DA_TAG_RES[k].mark + '</i>' + DA_TAG_RES[k].label + '</span>';
+      }).join('') + '</div><div class="da-tags">';
+  d.focus.forEach(function(f, ri) {
+    const seq = f.seq || [];
+    const cnt = { good: 0, some: 0, bad: 0, other: 0 };
+    seq.forEach(function(c) { cnt[c.c] = (cnt[c.c] || 0) + 1; });
+    const mine = /^マイ:/.test(f.label);
+    h += '<div class="da-tag-row">'
+      + '<div class="da-tag-head"><span class="da-tag' + (mine ? ' mine' : '') + '">' + (mine ? '★ ' : '') + daEsc(daLabel(f.label)) + '</span>'
+      + '<span class="da-tag-n">' + f.count + '回</span>'
+      + (f.run >= 2 ? '<span class="da-tag-run">最新まで' + f.run + '回続けて</span>' : '') + '</div>'
+      + '<div class="da-tag-cells' + (seq.length > 14 ? ' dense' : '') + '">' + seq.map(function(c, i) {
+          const res = DA_TAG_RES[c.c] || DA_TAG_RES.other;
+          return '<button type="button" class="da-sq r-' + c.c + '" aria-label="' + daEsc(c.d) + ' ' + res.label + '" onclick="daTagShow(' + ri + ',' + i + ')">' + res.mark + '</button>';
+        }).join('') + '</div>'
+      + '<div class="da-tag-sum">' + ['good', 'some', 'bad'].filter(function(k) { return cnt[k]; }).map(function(k) {
+          return DA_TAG_RES[k].mark + ' ' + DA_TAG_RES[k].label + ' ' + cnt[k];
+        }).join('　') + (cnt.other ? '　記入なし ' + cnt.other : '') + '</div>'
+      + '<div class="da-tag-info" id="da-tag-info-' + ri + '"></div>'
+      + '</div>';
   });
-  let best = null;
-  Object.keys(cand).forEach(function(id) {
-    const c = cand[id];
-    if (!c.who.length) return;
-    const newer = best && (c.dms > best.dms || (c.dms === best.dms && c.ms > best.ms)); // 同数なら記録日が新しい方、同じ日なら後から書いた方
-    if (!best || c.who.length > best.who.length || (c.who.length === best.who.length && newer)) { best = c; best.id = id; }
+  return h + '</div><div class="da-note">マスは選んだ日を古い順に並べたものです。押すとその日の結果が出ます</div></div>';
+}
+function daTagShow(ri, i) {
+  const f = daTagData[ri], c = f && (f.seq || [])[i];
+  const el = document.getElementById('da-tag-info-' + ri);
+  if (!c || !el) return;
+  el.textContent = c.d + '：' + (DA_TAG_RES[c.c] || DA_TAG_RES.other).label + (c.m ? '（ほかのテーマも選んだ日）' : '');
+}
+
+// ① 調子の波：記録した日ごとの充実度・コンディション・負荷（1〜5）。記録した日だけを詰めて並べる
+let daWaveData = null;
+function daWave(d) {
+  const w = d.wave;
+  if (!w || !w.days || !w.days.length) return '';
+  daWaveData = w.days;
+  const days = w.days, n = days.length;
+  const W = 300, H = 156, L = 20, R = 8, T = 10, B = 30;
+  const xs = function(i) { return n === 1 ? (L + (W - L - R) / 2) : L + i * (W - L - R) / (n - 1); };
+  const ys = function(v) { return T + (5 - v) * (H - T - B) / 4; };
+  const series = [ { k: 'q2', cls: 'w-q2' }, { k: 'q1', cls: 'w-q1' }, { k: 'q3', cls: 'w-q3' } ]; // 充実度を最前面に
+  const r = n <= 31 ? 3.2 : 2;
+  let svg = '<svg class="da-wave" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="日ごとの充実度・コンディション・負荷">';
+  [1, 2, 3, 4, 5].forEach(function(v) {
+    svg += '<line class="w-grid' + (v === 3 ? ' w-mid' : '') + '" x1="' + L + '" x2="' + (W - R) + '" y1="' + ys(v) + '" y2="' + ys(v) + '"/>'
+         + '<text class="w-ax" x="' + (L - 6) + '" y="' + (ys(v) + 3.5) + '" text-anchor="end">' + v + '</text>';
   });
-  if (!best) return null;
-  return { id: best.id, name: best.name, text: best.text, date: formatDiaryDate_(best.dms), count: best.who.length, who: best.who };
-}
-
-// ============================================================
-//  部員名簿（氏名 → 表示名）。公開版では任意。
-//  シートが無い／表示名が空欄なら、入力されたニックネームをそのまま表示する。
-// ============================================================
-function getDisplayNames_(ss) {
-  const sh = ss.getSheetByName('部員名簿');
-  const map = {};
-  if (!sh || sh.getLastRow() < 2) return map;
-  sh.getRange(2, 1, sh.getLastRow() - 1, 2).getDisplayValues().forEach(function(r) {
-    const full = normalizeName(r[0]);
-    const disp = String(r[1] || '').trim();
-    if (full && disp) map[full] = disp;
+  series.forEach(function(s) {
+    const pts = [];
+    days.forEach(function(x, i) { if (x[s.k]) pts.push([xs(i), ys(x[s.k])]); });
+    if (pts.length > 1) svg += '<polyline class="' + s.cls + '" fill="none" points="' + pts.map(function(p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ') + '"/>';
+    pts.forEach(function(p) { svg += '<circle class="' + s.cls + '-pt" cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="' + r + '"/>'; });
   });
-  return map;
+  svg += '<line id="da-wave-cur" class="w-cur" x1="0" x2="0" y1="' + T + '" y2="' + (H - B) + '" style="display:none"/>';
+  // 日付の目盛り（点の真下に置く）：最初・真ん中・最後
+  const ticks = n === 1 ? [0] : (n >= 5 ? [0, Math.floor((n - 1) / 2), n - 1] : [0, n - 1]);
+  ticks.forEach(function(i, j) {
+    const anchor = n === 1 ? 'middle' : (j === 0 ? 'start' : (i === n - 1 ? 'end' : 'middle'));
+    svg += '<line class="w-tick" x1="' + xs(i).toFixed(1) + '" x2="' + xs(i).toFixed(1) + '" y1="' + (H - B + 2) + '" y2="' + (H - B + 6) + '"/>'
+         + '<text class="w-date" x="' + (anchor === 'start' ? xs(i) - 4 : anchor === 'end' ? xs(i) + 4 : xs(i)).toFixed(1) + '" y="' + (H - B + 18) + '" text-anchor="' + anchor + '">' + daEsc(days[i].d) + '</text>';
+  });
+  const bw = n === 1 ? (W - L - R) : (W - L - R) / (n - 1);
+  days.forEach(function(x, i) {
+    svg += '<rect class="w-hit" x="' + (xs(i) - bw / 2).toFixed(1) + '" y="0" width="' + bw.toFixed(1) + '" height="' + H + '" onclick="daWaveShow(' + i + ')"/>';
+  });
+  svg += '</svg>';
+  const mid = Math.floor((n - 1) / 2);
+  const recN = days.filter(function(x) { return x.q1 || x.q2 || x.q3; }).length;
+  return '<div class="da-sec"><div class="da-sec-title">① 調子の波</div>'
+    + '<div class="da-box">'
+    + '<div class="da-key da-key-btns" style="margin:0 0 4px;">'
+    + '<button type="button" aria-pressed="true" onclick="daWaveToggle(this,\'q3\')"><i class="k-line k-q3"></i>充実度</button>'
+    + '<button type="button" aria-pressed="true" onclick="daWaveToggle(this,\'q1\')"><i class="k-line k-q1"></i>コンディション</button>'
+    + '<button type="button" aria-pressed="true" onclick="daWaveToggle(this,\'q2\')"><i class="k-line k-q2"></i>負荷（5＝きつい）</button></div>'
+    + '<div class="da-note" style="margin:0 0 2px;">名前を押すと、その線を消したり出したりできます</div>'
+    + svg
+    + '<div class="da-wave-info" id="da-wave-info">グラフを押すと、その日の値が出ます</div></div>'
+    + (recN === 0 ? '<div class="da-row" style="color:#b45309;">この範囲の日記は、Q1〜Q3（コンディション・負荷・充実度）が未記入のため、点を表示できません</div>' : '')
+    + (recN === 1 ? '<div class="da-note">Q1〜Q3が記入された記録が1回分なので、点だけ表示しています（2回分以上で線になります）</div>' : '')
+    + (w.capped ? '<div class="da-note">直近90日分を表示しています</div>' : '') + '</div>';
 }
-
-// エディタから手動で実行（任意）：部員名簿シートを作り、剣道日記に登場した名前を未登録分だけ追記する
-function setupMemberList() {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
-  let sh = ss.getSheetByName('部員名簿');
-  if (!sh) {
-    sh = ss.insertSheet('部員名簿');
-    sh.appendRow(['氏名', '表示名']);
-    sh.getRange(1, 1, 1, 2).setBackground('#1B3A5C').setFontColor('#FFFFFF').setFontWeight('bold');
-    sh.setFrozenRows(1);
-  }
-  const have = {};
-  if (sh.getLastRow() >= 2) {
-    sh.getRange(2, 1, sh.getLastRow() - 1, 1).getDisplayValues().forEach(function(r) { have[normalizeName(r[0])] = true; });
-  }
-  const src = ss.getSheetByName(DIARY_SHEET);
-  const add = [];
-  if (src && src.getLastRow() >= 2) {
-    const hd = src.getRange(1, 1, 1, src.getLastColumn()).getValues()[0];
-    const iName = hd.indexOf('氏名');
-    if (iName >= 0) {
-      src.getRange(2, iName + 1, src.getLastRow() - 1, 1).getDisplayValues().forEach(function(r) {
-        const n = normalizeName(r[0]);
-        if (n && !have[n]) { have[n] = true; add.push([safeCell_(n), '']); }
-      });
-    }
-  }
-  if (add.length) sh.getRange(sh.getLastRow() + 1, 1, add.length, 2).setValues(add);
-  return add.length;
+// 線の表示・非表示（見たい線だけに絞れる）
+function daWaveToggle(btn, k) {
+  const svg = btn.closest('.da-box').querySelector('svg.da-wave');
+  if (!svg) return;
+  const on = btn.getAttribute('aria-pressed') !== 'true';
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  svg.classList.toggle('hide-' + k, !on);
 }
-
-// ============================================================
-//  リアクションの付与／取り消し（doPost のロック内）
-//  シート「リアクション」：対象ID / 種類 / 押した人 / 受信日時
-// ============================================================
-function getReactionSheet_() {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
-  let sh = ss.getSheetByName('リアクション');
-  if (!sh) {
-    sh = ss.insertSheet('リアクション');
-    sh.appendRow(['対象ID', '種類', '押した人', '受信日時']);
-    sh.getRange(1, 1, 1, 4).setBackground('#1B3A5C').setFontColor('#FFFFFF').setFontWeight('bold');
-    sh.setFrozenRows(1);
-    sh.getRange('A:A').setNumberFormat('@'); // 対象IDを文字列のまま保持
-  }
-  return sh;
-}
-
-function handleToggleReaction(data) {
-  try {
-    const targetId = String(data.targetId || '');
-    const type     = String(data.type || '');
-    const reactor  = normalizeName(data.reactor || '');
-    if (!targetId || targetId.length > 80 || targetId.indexOf('|') < 0 || REACTION_TYPES.indexOf(type) < 0) {
-      return jsonResponse({ status: 'error', message: '不正なリクエストです' });
-    }
-    if (!reactor) return jsonResponse({ status: 'error', message: '名前がありません' });
-    if (reactor.length > NAME_MAX) return jsonResponse({ status: 'error', message: '不正なリクエストです' });
-    if (targetId.split('|')[0] === reactor) return jsonResponse({ status: 'error', message: '自分の一言にはリアクションできません' });
-
-    const sh = getReactionSheet_();
-    const last = sh.getLastRow();
-    if (last >= 2) {
-      const rows = sh.getRange(2, 1, last - 1, 3).getDisplayValues();
-      for (let i = rows.length - 1; i >= 0; i--) {
-        if (rows[i][0] === targetId && rows[i][1] === type && rows[i][2] === reactor) {
-          sh.deleteRow(i + 2);
-          return jsonResponse({ status: 'ok', state: 'removed' });
-        }
-      }
-    }
-    const now = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
-    sh.appendRow([safeCell_(targetId), type, safeCell_(reactor), now]);
-    return jsonResponse({ status: 'ok', state: 'added' });
-  } catch (err) {
-    return jsonResponse({ status: 'error', message: err.message });
+function daWaveShow(i) {
+  const x = daWaveData && daWaveData[i];
+  const info = document.getElementById('da-wave-info');
+  if (!x || !info) return;
+  info.textContent = (x.q3 || x.q1 || x.q2)
+    ? x.d + '　充実度 ' + (x.q3 || '—') + '　コンディション ' + (x.q1 || '—') + '　負荷 ' + (x.q2 || '—')
+    : x.d + '　記録なし';
+  const svg = info.parentNode.querySelector('svg');
+  const cur = document.getElementById('da-wave-cur');
+  const hit = svg ? svg.querySelectorAll('.w-hit')[i] : null;
+  if (cur && hit) {
+    const cx = parseFloat(hit.getAttribute('x')) + parseFloat(hit.getAttribute('width')) / 2;
+    cur.setAttribute('x1', cx); cur.setAttribute('x2', cx); cur.style.display = '';
   }
 }
 
-// ============================================================
-//  コメント（書かれた本人にだけ表示）
-//  シート「コメント」：対象ID / 宛先 / 書いた人 / コメント / 受信日時
-// ============================================================
-const COMMENT_MAX = 30;
 
-function getCommentSheet_() {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
-  let sh = ss.getSheetByName('コメント');
-  if (!sh) {
-    sh = ss.insertSheet('コメント');
-    sh.appendRow(['対象ID', '宛先', '書いた人', 'コメント', '受信日時']);
-    sh.getRange(1, 1, 1, 5).setBackground('#1B3A5C').setFontColor('#FFFFFF').setFontWeight('bold');
-    sh.setFrozenRows(1);
-    sh.getRange('A:A').setNumberFormat('@');
+// 次の稽古へ：答えは出さず、本人に問いを1つ返す（決めたことは次の剣道日記のQ4で選ぶ）
+function daNext(d) {
+  if (!d.focus || !d.focus.length) return '';
+  return '<div class="da-next"><div class="da-next-k">🧭 次の稽古へ</div>'
+    + '<div class="da-next-q">今のテーマ「' + daEsc(daLabel(d.focus[0].label)) + '」は、次の稽古でも続ける？　それとも変える？</div>'
+    + '<div class="da-next-s">決めたことを意識して稽古し、次の剣道日記のQ4で選ぼう</div></div>';
+}
+
+// ③ 過去の一言：一言を書いた日の直近7日分を新しい順に（期間ボタンに関係なく固定。最初は5件、「もっと見る」で残り）
+const DA_NOTES_FIRST = 5;
+function daNotes(d) {
+  if (d.notes === undefined) return ''; // GAS が v3 より前（過去の一言を返さない）
+  let h = '<div class="da-sec"><div class="da-sec-title">③ 過去の一言' + (d.notes.length ? '<span class="da-sec-sub">直近' + d.notes.length + '日分</span>' : '') + '</div>';
+  if (!d.notes.length) return h + '<div class="da-row">まだ一言を書いた日はありません。</div></div>';
+  h += '<div class="da-notes">' + d.notes.map(function(n, i) {
+    const tags = (n.q4 || []).map(function(t) { return '<span class="da-note-tag">' + daEsc(daLabel(t)) + '</span>'; }).join('');
+    return '<div class="da-note-item' + (i >= DA_NOTES_FIRST ? ' da-note-more' : '') + '">'
+      + '<div class="da-note-head"><span class="da-note-date">' + daEsc(n.d) + '</span>' + tags + '</div>'
+      + '<div class="da-note-text">' + daEsc(n.t) + '</div></div>';
+  }).join('') + '</div>';
+  const rest = d.notes.length - DA_NOTES_FIRST;
+  if (rest > 0) h += '<button type="button" class="da-notes-btn" onclick="daNotesToggle(this,' + rest + ')">もっと見る（残り' + rest + '件）</button>';
+  return h + '</div>';
+}
+function daNotesToggle(btn, rest) {
+  const box = btn.previousElementSibling;
+  const open = box.classList.toggle('show-all');
+  btn.textContent = open ? '閉じる' : 'もっと見る（残り' + rest + '件）';
+}
+
+// ===== ことばの要約 =====
+// GAS が数えた値だけを使って文章を組み立てる（AIによる推測や、データに無いことは書かない）。
+// ・調子：直近の記録を前半と後半に分け、平均の差が0.5以上なら「上がった／下がった」とする（各半分に2回以上あるときだけ）
+// ・テーマ：いちばん多く選んだQ4と、その日のQ5が「うまくできた」だった回数
+// ・反応：仲間から届いたリアクションとコメントの数
+const DA_TREND_MIN = 0.5;
+function daTrend(days, k) {
+  const v = days.map(function(x) { return x[k]; }).filter(function(x) { return x != null && x > 0; });
+  if (v.length < 4) return null;
+  const h = Math.floor(v.length / 2);
+  const avg = function(a) { return a.reduce(function(s, x) { return s + x; }, 0) / a.length; };
+  const a = avg(v.slice(0, h)), b = avg(v.slice(h));
+  return { first: a, second: b, diff: b - a, all: avg(v) };
+}
+function daSummary(d) {
+  if (!d || !d.days || !d.wave || !d.wave.days) return '';
+  const box = function(t, note) {
+    return '<div class="da-sumi"><div class="da-sumi-k">ことばの要約</div><div class="da-sumi-t">' + t + '</div>'
+      + (note ? '<div class="da-sumi-n">' + note + '</div>' : '') + '</div>';
+  };
+  if (d.days < d.minDays) {
+    return box('この1か月の記録があと' + (d.minDays - d.days) + '回たまると、ここにあなたの稽古の要約が出ます。まずは続けてみよう！');
   }
-  return sh;
-}
-
-function handleAddComment(data) {
-  try {
-    const targetId = String(data.targetId || '');
-    const owner    = normalizeName(targetId.split('|')[0] || '');
-    const text     = String(data.text || '').replace(/[\r\n]+/g, ' ').trim();
-    const writer   = normalizeName(data.commenter || '');
-    if (!targetId || targetId.length > 80 || !owner) return jsonResponse({ status: 'error', message: '不正なリクエストです' });
-    if (!text) return jsonResponse({ status: 'error', message: 'コメントが空です' });
-    if (text.length > COMMENT_MAX) return jsonResponse({ status: 'error', message: COMMENT_MAX + '字以内で入力してください' });
-    if (!writer) return jsonResponse({ status: 'error', message: '名前がありません' });
-    if (writer.length > NAME_MAX) return jsonResponse({ status: 'error', message: '不正なリクエストです' });
-    if (writer === owner) return jsonResponse({ status: 'error', message: '自分の一言にはコメントできません' });
-    const now = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
-    getCommentSheet_().appendRow([safeCell_(targetId), safeCell_(owner), safeCell_(writer), safeCell_(text), now]);
-    return jsonResponse({ status: 'ok' });
-  } catch (err) {
-    return jsonResponse({ status: 'error', message: err.message });
-  }
-}
-
-// 本人用：自分の今の一言（対象ID）に付いたコメントだけを返す
-function handleGetMyComments(params, callback) {
-  try {
-    const name = normalizeName(params.name || '');
-    const id   = String(params.id || '');
-    const out  = { status: 'ok', comments: [] };
-    if (name && id && normalizeName(id.split('|')[0]) === name) {
-      const ss = SpreadsheetApp.openById(SHEET_ID);
-      const sh = ss.getSheetByName('コメント');
-      if (sh && sh.getLastRow() >= 2) {
-        const disp = getDisplayNames_(ss);
-        sh.getRange(2, 1, sh.getLastRow() - 1, 5).getDisplayValues().forEach(function(r) {
-          if (r[0] === id && normalizeName(r[1]) === name) {
-            out.comments.push({ from: disp[r[2]] || r[2], text: r[3], ms: toMillis_(r[4]) });
-          }
-        });
-        out.comments.sort(function(a, b) { return b.ms - a.ms; });
-      }
-    }
-    return respond_(out, callback);
-  } catch (err) {
-    return respond_({ status: 'error', message: err.message }, callback);
-  }
-}
-
-// ============================================================
-//  本人が記録済みの日（今日から BACKDATE_DAYS 日前まで）。ページで「この日は上書きになります」と出すため
-// ============================================================
-function handleGetMyDates(params, callback) {
-  try {
-    const name = normalizeName(params.name || '');
-    const out = { status: 'ok', dates: [], recs: {} };
-    const sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName(DIARY_SHEET);
-    if (!name || !sh || sh.getLastRow() < 2) return respond_(out, callback);
-    const lastCol = sh.getLastColumn();
-    const hd = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
-    const ix = function(h) { return hd.indexOf(h); };
-    const iName = ix('氏名'), iDate = ix('記録日'), iRecv = ix('受信日時');
-    if (iName < 0 || iDate < 0) return respond_(out, callback);
-    const minKey = Utilities.formatDate(new Date(Date.now() - BACKDATE_DAYS * 86400000), 'Asia/Tokyo', 'yyyy-MM-dd');
-    const keyOf = function(v) { const ms = toMillis_(v); return ms ? Utilities.formatDate(new Date(ms), 'Asia/Tokyo', 'yyyy-MM-dd') : ''; };
-    const scaleOf = function(v) { const m = String(v || '').match(/[1-5]/); return m ? +m[0] : 0; };
-    const CHUNK = 200;
-    let end = sh.getLastRow(), stop = false;
-    while (end >= 2 && !stop) {
-      const start = Math.max(2, end - CHUNK + 1);
-      const n = end - start + 1;
-      const vals = sh.getRange(start, 1, n, lastCol).getValues();
-      const disp = sh.getRange(start, 1, n, lastCol).getDisplayValues();
-      for (let i = n - 1; i >= 0; i--) {
-        // この行が届いたのが対象期間より前なら、ここより上（さらに前に届いた行）はすべて対象外
-        if (iRecv >= 0) { const rk = keyOf(vals[i][iRecv]); if (rk && rk < minKey) { stop = true; break; } }
-        if (normalizeName(disp[i][iName]) !== name) continue;
-        const k = keyOf(vals[i][iDate]);
-        if (!k || k < minKey || out.recs[k]) continue; // 同じ日が複数あれば、後から届いた（下の）行を使う
-        out.recs[k] = {
-          q1: scaleOf(disp[i][ix('Q1コンディション')]), q2: scaleOf(disp[i][ix('Q2負荷')]), q3: scaleOf(disp[i][ix('Q3充実度')]),
-          q4: ix('Q4意識したこと') >= 0 ? splitQ4_(disp[i][ix('Q4意識したこと')]) : [],
-          q5: ix('Q5変化') >= 0 ? splitQ5_(disp[i][ix('Q5変化')]) : [],
-          text: ix('一言') >= 0 ? String(disp[i][ix('一言')] || '').trim() : ''
-        };
-        out.dates.push(k);
-      }
-      end = start - 1;
-    }
-    return respond_(out, callback);
-  } catch (err) {
-    return respond_({ status: 'error', message: err.message }, callback);
-  }
-}
-
-// ============================================================
-//  ニックネームの重複チェック（読み取り専用）
-//  「全員_剣道日記」の氏名、または「マイテーマ」の氏名に同じ名前があれば使用中
-// ============================================================
-function handleCheckName(params, callback) {
-  try {
-    const name = normalizeName(params.name || '');
-    const out = { status: 'ok', name: name, used: false };
-    if (!name) return respond_(out, callback);
-    const ss = SpreadsheetApp.openById(SHEET_ID);
-    const has = function(sheetName, header) {
-      const sh = ss.getSheetByName(sheetName);
-      if (!sh || sh.getLastRow() < 2) return false;
-      const hd = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
-      const i = hd.indexOf(header);
-      if (i < 0) return false;
-      const v = sh.getRange(2, i + 1, sh.getLastRow() - 1, 1).getDisplayValues();
-      for (let r = 0; r < v.length; r++) if (normalizeName(v[r][0]) === name) return true;
-      return false;
-    };
-    out.used = has(DIARY_SHEET, '氏名') || has(MY_THEME_SHEET, '氏名');
-    return respond_(out, callback);
-  } catch (err) {
-    return respond_({ status: 'error', message: err.message }, callback);
-  }
-}
-
-// ============================================================
-//  マイテーマ（個人設定・最大3つ）
-//  シート「マイテーマ」：氏名 / テーマ1 / テーマ2 / テーマ3 / 更新日時（1人1行・上書き）
-// ============================================================
-const MY_THEME_MAX = 3;
-const MY_THEME_LEN = 30;
-const MY_THEME_SHEET = 'マイテーマ';
-
-// 記録を壊す文字（区切りの「・」、改行、記録形式の「:」）を置き換える
-function cleanTheme_(s) {
-  return String(s == null ? '' : s).replace(/[\r\n]+/g, ' ').replace(/・/g, '／').replace(/:/g, '：')
-    .trim().slice(0, MY_THEME_LEN);
-}
-
-function getMyThemeSheet_() {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
-  let sh = ss.getSheetByName(MY_THEME_SHEET);
-  if (!sh) {
-    sh = ss.insertSheet(MY_THEME_SHEET);
-    sh.appendRow(['氏名', 'テーマ1', 'テーマ2', 'テーマ3', '更新日時']);
-    sh.getRange(1, 1, 1, 5).setBackground('#1B3A5C').setFontColor('#FFFFFF').setFontWeight('bold');
-    sh.setFrozenRows(1);
-  }
-  return sh;
-}
-
-function handleGetMyThemes(params, callback) {
-  try {
-    const name = normalizeName(params.name || '');
-    const out = { status: 'ok', items: [] };
-    const sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName(MY_THEME_SHEET);
-    if (name && sh && sh.getLastRow() >= 2) {
-      const rows = sh.getRange(2, 1, sh.getLastRow() - 1, 1 + MY_THEME_MAX).getDisplayValues();
-      for (let r = rows.length - 1; r >= 0; r--) {
-        if (normalizeName(rows[r][0]) !== name) continue;
-        out.items = rows[r].slice(1).map(function(x) { return String(x || '').trim(); }).filter(Boolean);
-        out.saved = true;
-        break;
-      }
-    }
-    return respond_(out, callback);
-  } catch (err) {
-    return respond_({ status: 'error', message: err.message }, callback);
-  }
-}
-
-// 保存（doPost のロック内）：本人の行があれば上書き、無ければ追記。空の配列で全削除になる
-function handleSaveMyThemes(data) {
-  try {
-    const name = normalizeName(data.name || '');
-    if (!name) return jsonResponse({ status: 'error', message: 'ニックネームがありません' });
-    if (name.length > NAME_MAX || name.indexOf('|') >= 0) return jsonResponse({ status: 'error', message: '不正なリクエストです' });
-    const list = Array.isArray(data.items) ? data.items : [];
-    const items = [];
-    list.forEach(function(x) {
-      const t = cleanTheme_(x);
-      if (t && items.indexOf(t) < 0 && items.length < MY_THEME_MAX) items.push(t);
-    });
-    const now = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
-    const row = [safeCell_(name)];
-    for (let i = 0; i < MY_THEME_MAX; i++) row.push(safeCell_(items[i] || ''));
-    row.push(now);
-
-    const sh = getMyThemeSheet_();
-    if (sh.getLastRow() >= 2) {
-      const names = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getDisplayValues();
-      for (let r = names.length - 1; r >= 0; r--) {
-        if (normalizeName(names[r][0]) === name) {
-          sh.getRange(r + 2, 1, 1, row.length).setValues([row]);
-          return jsonResponse({ status: 'ok', items: items });
-        }
-      }
-    }
-    sh.appendRow(row);
-    return jsonResponse({ status: 'ok', items: items });
-  } catch (err) {
-    return jsonResponse({ status: 'error', message: err.message });
-  }
-}
-
-// ============================================================
-//  剣道日記の分析（本人分のみ・読み取り専用）※佐賀学園 v11.5 と同じ処理
-//  範囲：本人の記録の直近7回分（無料版。期間の切り替えはなし。days の指定は無視する）
-//  返す内容：days / focus / others / wave / peers（シートの値から数えた事実のみ）
-// ============================================================
-const ANALYZE_MIN_DAYS = 3;
-const ANALYZE_RANGE_DAYS = 30;            // 分析の範囲：直近30日（今日を含む）
-const ANALYZE_PERIOD_DAYS = 7;
-const ANALYZE_PERIOD_CHOICES = [7];
-const ANALYZE_COMMENT_MAX = 30;
-const ANALYZE_NOTES_DAYS = 7;             // 過去の一言：一言を書いた日の直近7日分（期間ボタンに関係なく固定）
-
-const Q4_KNOWN_LABELS_ = [
-  // 基本テーマ（HTML の Q4 ボタンの記録名と一致させる）
-  '足さばき・姿勢', '攻め・間合い', '打突・技', 'タイミング・拍子', 'メンタル・集中'
-].sort(function(a, b) { return b.length - a.length; });
-
-function splitQ4_(s) {
-  s = String(s || '').trim();
+  const days = d.wave.days;
+  const fill = daTrend(days, 'q3'), cond = daTrend(days, 'q1'), load = daTrend(days, 'q2');
   const out = [];
-  let i = 0;
-  while (i < s.length) {
-    if (s.charAt(i) === '・') { i++; continue; }
-    let hit = '';
-    for (let k = 0; k < Q4_KNOWN_LABELS_.length; k++) {
-      const L = Q4_KNOWN_LABELS_[k];
-      if (s.substr(i, L.length) === L && (i + L.length === s.length || s.charAt(i + L.length) === '・')) { hit = L; break; }
-    }
-    if (!hit) {
-      const j = s.indexOf('・', i);
-      hit = s.slice(i, j < 0 ? s.length : j);
-    }
-    const t = hit.trim();
-    if (t && out.indexOf(t) < 0) out.push(t);
-    i += hit.length;
+  let mood = 0; // 1=上向き / -1=下向き / 0=安定
+  const span = 'この1か月（記録' + d.days + '回）で';
+  if (fill && Math.abs(fill.diff) >= DA_TREND_MIN) {
+    mood = fill.diff > 0 ? 1 : -1;
+    out.push(span + '、充実度が' + (mood > 0 ? '上がっています📈' : '下がり気味です📉') + '（' + fill.first.toFixed(1) + '→' + fill.second.toFixed(1) + '）。');
+  } else if (cond && Math.abs(cond.diff) >= DA_TREND_MIN) {
+    mood = cond.diff > 0 ? 1 : -1;
+    out.push(span + '、コンディションが' + (mood > 0 ? '上がっています📈' : '下がり気味です📉') + '（' + cond.first.toFixed(1) + '→' + cond.second.toFixed(1) + '）。');
+  } else if (fill) {
+    out.push(span + '、充実度は安定しています（平均' + fill.all.toFixed(1) + '）。');
+  } else {
+    out.push(span + 'の記録をまとめました。');
   }
+  // 負荷が高いまま、コンディションが落ちているとき
+  if (load && cond && load.second >= 4 && cond.diff <= -DA_TREND_MIN) {
+    out.push('きつい稽古が続き、体が疲れてきています。回復も稽古のうちです。');
+  }
+  const f = (d.focus || [])[0];
+  if (f) {
+    let t = 'いちばん意識しているのは「' + daEsc(daLabel(f.label)) + '」（' + f.count + '回）。';
+    const good = (f.seq || []).filter(function(x) { return x.c === 'good'; }).length;
+    if (good > 0) t += 'そのうち「うまくできた」が' + good + '回あります。';
+    out.push(t);
+  }
+  const p = d.peers;
+  if (p && p.reactions) {
+    const n = (p.reactions.nice || 0) + (p.reactions.wakaru || 0) + (p.reactions.sanko || 0) + (p.commentTotal || 0);
+    if (n > 0) out.push('仲間から反応が' + n + '件届いています。');
+  }
+  out.push(mood > 0 ? 'この調子で続けよう！' : mood < 0 ? '焦らず、一つずつ立て直していこう。' : 'この積み重ねを続けよう！');
+  return box(out.join(''), 'あなたの記録の数字だけでまとめています');
+}
+
+function daRender(d) {
+  let h = '';
+  const rangeTxt = d.rangeFrom ? '直近1か月（' + daEsc(d.rangeFrom) + '〜' + daEsc(d.rangeTo) + '）' : '';
+  if (!d.days) {
+    if (d.olderRecords) {
+      return '<div class="da-meta">' + rangeTxt + '</div><div class="da-empty"><div>この1か月の記録はまだありません。</div><div class="da-empty-s">記録すると、ここに1か月の分析が出ます。</div></div>' + daNotes(d);
+    }
+    return '<div class="da-empty"><div>まだ日記の記録がありません。</div><div class="da-empty-s">記録した直後は、反映まで少しかかることがあります。</div></div>' + daPeers(d);
+  }
+  h += '<div class="da-meta">' + (rangeTxt || '記録の範囲') + '・記録 <b>' + d.days + '回</b></div>';
+  // GAS が古い版（v11 より前）のときは、グラフ用のデータが返ってこない
+  if (d.wave === undefined) {
+    return h + '<div class="da-row" style="color:#b45309;">サーバー側（GAS）が古い版のため、グラフを表示できません。GAS を最新版に置き換え、「新バージョン」でデプロイしてください。</div>' + daPeers(d);
+  }
+  if (d.days < d.minDays) {
+    return h + daSummary(d) + daWave(d) + '<div class="da-meta">この1か月の記録が' + d.minDays + '回たまると、テーマの分析も表示します（あと' + (d.minDays - d.days) + '回）。</div>' + daNotes(d) + daPeers(d);
+  }
+  // 並び：① 調子の波 → ② 今のテーマ（進み具合） → ③ 過去の一言 → ④ 仲間からの反応 → 次の稽古へ
+  return h + daSummary(d) + daWave(d) + daFocus(d) + daNotes(d) + daPeers(d) + daNext(d)
+    + '<div class="da-note" style="margin-top:10px;">※Q5を複数選んだ日は「うまく→少し→できず」の順で1つに数えています</div>';
+}
+
+// 名前以外をクリア
+function resetDiaryForm() {
+  formDirty = false;
+  diaryState.q1 = 0; diaryState.q2 = 0; diaryState.q3 = 0;
+  document.querySelectorAll('.diary-scale-btn.selected').forEach(function(b){ b.classList.remove('selected'); });
+  document.querySelectorAll('.diary-check-btn.selected').forEach(function(b){ b.classList.remove('selected'); });
+  const free = document.getElementById('diary-free');
+  if (free) free.value = '';
+}
+
+
+// ===== マイテーマ（個人設定・最大3つ） =====
+// 端末の控え（すぐ表示するため）＋ GAS のシート「マイテーマ」（別の端末にも反映するため）
+const MY_MAX = 3;
+const LS_MY = 'kd_my_themes'; // {name, items:[…]}
+let myItems = [];
+
+function myClean(s) {
+  // 記録を壊す文字（区切りの「・」、改行、記録形式の「:」）を置き換える
+  return String(s || '').replace(/[\r\n]+/g, ' ').replace(/・/g, '／').replace(/:/g, '：').trim().slice(0, 30);
+}
+function myUniq(list) {
+  const out = [];
+  (list || []).forEach(function(x) { const t = myClean(x); if (t && out.indexOf(t) < 0 && out.length < MY_MAX) out.push(t); });
   return out;
 }
+function myCacheGet(name) {
+  try { const o = JSON.parse(LS.get(LS_MY) || '{}'); return (o.name === name && Array.isArray(o.items)) ? o.items : null; } catch(e) { return null; }
+}
+function myCacheSet(name, items) { LS.set(LS_MY, JSON.stringify({ name: name, items: items })); }
 
-function splitQ5_(s) {
-  return String(s || '').split('・').map(function(x) { return x.trim(); })
-    .filter(function(x, i, a) { return x && a.indexOf(x) === i; });
+function myRender() {
+  const box = document.getElementById('q4-my');
+  if (!box) return;
+  const selected = Array.from(box.querySelectorAll('.diary-check-btn.selected')).map(function(b) { return b.dataset.my; });
+  let h = '';
+  for (let i = 0; i < MY_MAX; i++) {
+    const t = myItems[i];
+    if (t) {
+      h += '<button type="button" class="diary-check-btn' + (selected.indexOf(t) >= 0 ? ' selected' : '') + '" data-my="' + escAttr(t) + '" onclick="diaryCheck(this)">'
+        + '<span class="q4-main">' + escH(t) + '</span><span class="q4-sub">マイテーマ' + (i + 1) + '</span></button>';
+    } else {
+      h += '<button type="button" class="diary-check-btn q4-empty" onclick="myOpenSettings()" aria-label="マイテーマ' + (i + 1) + 'を設定する">'
+        + '<span class="q4-main">（設定なし）</span><span class="q4-sub">マイテーマ' + (i + 1) + '・押すと設定</span></button>';
+    }
+  }
+  box.innerHTML = h;
+  if (formPrefilledFor && !formDirty && myRecs[formPrefilledFor]) {
+    const q4 = myRecs[formPrefilledFor].q4 || [];
+    box.querySelectorAll('.diary-check-btn[data-my]').forEach(function(b) { if (q4.indexOf('マイ:' + b.dataset.my) >= 0) b.classList.add('selected'); });
+  }
+  // 説明は、まだ1つも登録していないときだけ出す（登録すれば「次回も出る」ことは見て分かるため）
+  const hint = document.getElementById('q4-my-hint');
+  if (hint) hint.style.display = myItems.length ? 'none' : 'block';
 }
 
-function handleAnalyzeDiary(params, callback) {
-  try {
-    const name = normalizeName(params.name || '');
-    let pd = params.days === undefined || params.days === '' ? ANALYZE_PERIOD_DAYS : parseInt(params.days, 10);
-    if (ANALYZE_PERIOD_CHOICES.indexOf(pd) < 0) pd = ANALYZE_PERIOD_DAYS;
-    const out = { status: 'ok', name: name, days: 0, minDays: ANALYZE_MIN_DAYS, periodDays: pd, unit: 'records' };
-    const nowD = new Date();
-    const toKey = Utilities.formatDate(nowD, 'Asia/Tokyo', 'yyyy-MM-dd');
-    const sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName(DIARY_SHEET);
-    if (!name || !sh || sh.getLastRow() < 2) return respond_(out, callback);
-
-    const lastCol = sh.getLastColumn();
-    const n  = sh.getLastRow() - 1;
-    const hd = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
-    const vals = sh.getRange(2, 1, n, lastCol).getValues();
-    const disp = sh.getRange(2, 1, n, lastCol).getDisplayValues();
-    const hdN = hd.map(function(h) { return String(h).replace(/[\s\u3000]+/g, '').replace(/Ｑ/g, 'Q').replace(/[０-９]/g, function(z) { return String.fromCharCode(z.charCodeAt(0) - 0xFEE0); }); });
-    const cols = function(exact, prefix, word) {
-      const o = [];
-      const e = hdN.indexOf(exact);
-      if (e >= 0) o.push(e);
-      hdN.forEach(function(h, i) { if (o.indexOf(i) < 0 && (h.indexOf(prefix) === 0 || (word && h.indexOf(word) >= 0))) o.push(i); });
-      return o;
-    };
-    const c = {
-      name: hd.indexOf('氏名'), date: hd.indexOf('記録日'), recv: hd.indexOf('受信日時'), ts: hd.indexOf('timestamp'), text: hd.indexOf('一言'),
-      q1: cols('Q1コンディション', 'Q1', 'コンディション'), q2: cols('Q2負荷', 'Q2', '負荷'), q3: cols('Q3充実度', 'Q3', '充実'),
-      q4: cols('Q4意識したこと', 'Q4', '意識'), q5: cols('Q5変化', 'Q5', '')
-    };
-    out.colsMissing = ['q1', 'q2', 'q3', 'q4', 'q5'].filter(function(k) { return !c[k].length; })
-      .map(function(k) { return { q1: 'Q1コンディション', q2: 'Q2負荷', q3: 'Q3充実度', q4: 'Q4意識したこと', q5: 'Q5変化' }[k]; });
-    if (c.name < 0 || c.date < 0) return respond_(out, callback);
-
-    // 記録日ごとに1件にまとめる
-    const byDay = {};
-    for (let r = 0; r < n; r++) {
-      if (normalizeName(disp[r][c.name]) !== name) continue;
-      const dms = toMillis_(vals[r][c.date]);
-      if (!dms) continue;
-      const key = Utilities.formatDate(new Date(dms), 'Asia/Tokyo', 'yyyy-MM-dd');
-      if (key > toKey) continue;
-      let ms = c.recv >= 0 ? toMillis_(vals[r][c.recv]) : 0;
-      if (!ms && c.ts >= 0) ms = toMillis_(vals[r][c.ts]);
-      const num = function(list) {
-        for (let j = 0; j < list.length; j++) {
-          const m = String(disp[r][list[j]] || '').replace(/[０-９]/g, function(z) { return String.fromCharCode(z.charCodeAt(0) - 0xFEE0); }).match(/[1-5]/);
-          if (m) return +m[0];
-        }
-        return 0;
-      };
-      const txt = function(list) {
-        for (let j = 0; j < list.length; j++) { const t = String(disp[r][list[j]] || '').trim(); if (t) return t; }
-        return '';
-      };
-      const rec = {
-        key: key, dms: dms, ms: ms, row: r,
-        q1: num(c.q1), q2: num(c.q2), q3: num(c.q3),
-        q4: splitQ4_(txt(c.q4)),
-        q5: splitQ5_(txt(c.q5)),
-        text: c.text >= 0 ? String(disp[r][c.text] || '').trim() : ''
-      };
-      rec.tq = rec.q4; // この一言を書いた回に選んだQ4（過去の一言のテーマ表示用）
-      const old = byDay[key];
-      if (!old) { byDay[key] = rec; continue; }
-      const newer = (rec.ms > old.ms || (rec.ms === old.ms && rec.row > old.row)) ? rec : old;
-      const older = newer === rec ? old : rec;
-      byDay[key] = {
-        key: key, dms: newer.dms, ms: newer.ms, row: newer.row,
-        q1: newer.q1 || older.q1, q2: newer.q2 || older.q2, q3: newer.q3 || older.q3,
-        q4: newer.q4.length ? newer.q4 : older.q4,
-        q5: newer.q5.length ? newer.q5 : older.q5,
-        text: newer.text || older.text,
-        tq: newer.text ? newer.tq : (older.text ? older.tq : newer.tq)
-      };
+// ニックネームが決まったとき・起動時：端末の控えですぐ表示し、GAS の記録で上書きする
+function myLoad() {
+  const name = confirmedNick();
+  if (!name) { myItems = []; myRender(); return; }
+  const cached = myCacheGet(name);
+  myItems = cached || [];
+  myRender();
+  fetch(GAS_URL + '?' + new URLSearchParams({ action: 'getMyThemes', name: name }).toString())
+  .then(function(r) { return r.json(); })
+  .then(function(j) {
+    if (j.status !== 'ok' || confirmedNick() !== name) return; // 取得中にニックネームが変わった
+    if (j.saved) {
+      myItems = myUniq(j.items);
+      myCacheSet(name, myItems);
+      myRender();
+    } else if (cached && cached.length) {
+      mySend(name, cached); // 端末にだけある設定（送信に失敗していた分）をサーバーへ送る
     }
-    const allRecs = Object.keys(byDay).sort().map(function(k) { return byDay[k]; });
-    out.totalRecords = allRecs.length;
-    out.periodCounts = {};
-    ANALYZE_PERIOD_CHOICES.forEach(function(ch) { out.periodCounts[ch] = ch > 0 ? Math.min(ch, allRecs.length) : allRecs.length; });
-    // 範囲：記録日が今日から (ANALYZE_RANGE_DAYS-1) 日前〜今日
-    const fromKey = Utilities.formatDate(new Date(nowD.getTime() - (ANALYZE_RANGE_DAYS - 1) * 86400000), 'Asia/Tokyo', 'yyyy-MM-dd');
-    const recs = allRecs.filter(function(x) { return x.key >= fromKey; });
-    out.unit = 'days';
-    out.rangeDays = ANALYZE_RANGE_DAYS;
-    out.rangeFrom = formatDiaryDate_(toMillis_(fromKey));
-    out.rangeTo = formatDiaryDate_(nowD.getTime());
-    out.days = recs.length;
-    out.olderRecords = allRecs.length > recs.length;
-    if (!recs.length) {
-      // 30日の中に記録が無くても、過去の一言は出す
-      const wt = allRecs.filter(function(x) { return x.text; });
-      out.notesTotal = wt.length;
-      out.notes = wt.slice(-ANALYZE_NOTES_DAYS).reverse().map(function(x) { return { d: formatDiaryDate_(x.dms), t: x.text, q4: x.tq && x.tq.length ? x.tq : x.q4 }; });
-      return respond_(out, callback);
+  })
+  .catch(function() {});
+}
+
+function mySend(name, items) {
+  return gasPost({ action: 'saveMyThemes', name: name, items: items });
+}
+
+function myOpenSettings() {
+  if (!confirmedNick() || _diaryNameEditing) {
+    showToast('⚠ 先にニックネームを決めてください');
+    editDiaryName();
+    return;
+  }
+  const panel = document.getElementById('my-set');
+  if (!panel) return;
+  for (let i = 0; i < MY_MAX; i++) {
+    const el = document.getElementById('my-in-' + i);
+    if (el) el.value = myItems[i] || '';
+  }
+  panel.style.display = 'block';
+  const first = document.getElementById('my-in-' + Math.min(myItems.length, MY_MAX - 1));
+  if (first) setTimeout(function() { first.focus(); }, 50);
+}
+function myCloseSettings() {
+  const panel = document.getElementById('my-set');
+  if (panel) panel.style.display = 'none';
+}
+function mySaveSettings() {
+  const name = confirmedNick();
+  if (!name) { myCloseSettings(); return; }
+  const vals = [];
+  for (let i = 0; i < MY_MAX; i++) vals.push((document.getElementById('my-in-' + i) || {}).value || '');
+  myItems = myUniq(vals);
+  myCacheSet(name, myItems);
+  myRender();
+  myCloseSettings();
+  mySend(name, myItems)
+    .then(function() { showToast('✓ マイテーマを保存しました'); })
+    .catch(function() { showToast('⚠ この端末には保存しました。通信できたときにもう一度保存してください'); });
+}
+
+function escAttr(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ===== 仲間の一言（各自の最新1件・リアクション付き） =====
+// GAS の getNews が返す hitokoto: [{ id, name, date, text, reactions:{nice:[],wakaru:[],sanko:[]} }]
+// ===== 今週のいい気づき（直近7日で💡がいちばん多い一言。GASが選んだ1件をそのまま出す） =====
+let hkWeekly = null;
+function renderWeekly(w) {
+  if (w !== undefined) hkWeekly = w;
+  w = hkWeekly;
+  const box = document.getElementById('hk-weekly');
+  if (!box) return;
+  if (!w || !w.text || !w.count) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  const mine = w.name === hkMe();
+  const who = (w.who || []).map(function(n) { return escH(hkDn(n)); });
+  box.innerHTML = '<div class="hk-weekly-k">💡 今週のいい気づき</div>'
+    + '<div class="hk-weekly-t">' + escH(w.text) + '</div>'
+    + '<div class="hk-weekly-m"><span class="hk-weekly-name">' + escH(hkDn(w.name)) + (mine ? '（あなた）' : '') + '</span>'
+    + '<span>' + escH(w.date) + '</span><span class="hk-weekly-c">💡 ' + w.count + '人が「参考になる」</span></div>'
+    + (who.length ? '<div class="hk-weekly-who">' + who.join('、') + '</div>' : '');
+  box.style.display = 'block';
+}
+
+const HK_TYPES = [
+  { k: 'nice',   icon: '👍', label: 'ナイス' },
+  { k: 'wakaru', icon: '🤝', label: 'わかる' },
+  { k: 'sanko',  icon: '💡', label: '参考になる' }
+];
+let hkItems = [], hkOpenNames = null, hkOpenPicker = null;
+let hkDisplayNames = {}; // 名簿シートの「名前→表示名」（GASから受け取る。無ければ入力名のまま）
+function hkDn(n) { return hkDisplayNames[n] || n; } // 名簿に無ければフルネーム
+
+function hkMe() {
+  return confirmedNick();
+}
+
+function renderHitokoto(items) {
+  hkItems = Array.isArray(items) ? items : [];
+  hkOpenNames = null; hkOpenPicker = null; hkCommentFor = null;
+  drawHitokoto();
+  hkLoadMyComments();
+}
+
+function drawHitokoto() {
+  const list = document.getElementById('hk-list');
+  if (!list) return;
+  const me = hkMe();
+  // 自分の一言は記入者欄に出しているので、一覧からは除く（i は hkItems 上の位置を保持）
+  const others = hkItems.map(function(it, idx) { return { it: it, idx: idx }; })
+    .filter(function(o) { return !(me && o.it.name === me); });
+  if (!others.length) {
+    list.innerHTML = '<div class="hk-empty">まだ他の部活仲間の一言はありません</div>';
+    drawMyReactions();
+    hkUpdateBadge();
+    return;
+  }
+  const shown = others; // 全員分をすぐ表示（「もっと見る」なし）
+  list.innerHTML = shown.map(function(o) {
+    const it = o.it, i = o.idx;
+    const mine = !!me && it.name === me;
+    const rx = it.reactions || {};
+    let chips = HK_TYPES.filter(function(t) { return (rx[t.k] || []).length; }).map(function(t) {
+      const on = !!me && rx[t.k].indexOf(me) >= 0;
+      return '<button class="hk-chip hk-count' + (on ? ' on' : '') + '" onclick="hkToggleNames(' + i + ',\'' + t.k + '\')">' + t.icon + ' ' + rx[t.k].length + '</button>';
+    }).join('');
+    if (!mine && it.id) chips += '<button class="hk-chip hk-add" aria-label="リアクションする" onclick="hkTogglePicker(' + i + ')">＋</button>';
+    let extra = '';
+    if (hkOpenNames && hkOpenNames.i === i) {
+      const t = HK_TYPES.find(function(x) { return x.k === hkOpenNames.k; });
+      const names = rx[hkOpenNames.k] || [];
+      if (t && names.length) extra = '<div class="hk-names">' + t.icon + ' ' + t.label + '：' + names.map(function(n){ return escH(hkDn(n)); }).join('、') + '</div>';
     }
-    out.first = formatDiaryDate_(recs[0].dms);
-    out.last  = formatDiaryDate_(recs[recs.length - 1].dms);
-    out.periodFrom = out.first;
-    out.periodTo   = out.last;
-
-    const inPeriod = function(ms) {
-      if (!ms) return false;
-      const k = Utilities.formatDate(new Date(ms), 'Asia/Tokyo', 'yyyy-MM-dd');
-      return k >= fromKey && k <= toKey;
-    };
-    try { out.peers = buildPeerFeedback_(name, inPeriod); } catch (e) { console.warn('反応の集計失敗:', e); }
-
-    // 過去の一言：一言を書いた日だけを数えて、直近から7日分（期間ボタンに関係なく固定。記録が少なくても出す）
-    const withText = allRecs.filter(function(x) { return x.text; });
-    out.notesTotal = withText.length;
-    out.notes = withText.slice(-ANALYZE_NOTES_DAYS).reverse().map(function(x) { return { d: formatDiaryDate_(x.dms), t: x.text, q4: x.tq && x.tq.length ? x.tq : x.q4 }; });
-
-    out.wave = { days: recs.map(function(x) { return { d: formatDiaryDate_(x.dms), q1: x.q1 || null, q2: x.q2 || null, q3: x.q3 || null }; }), capped: false };
-    if (recs.length < ANALYZE_MIN_DAYS) return respond_(out, callback);
-
-    recs.forEach(function(x) {
-      const g  = x.q5.indexOf('うまくできた') >= 0 || x.q5.indexOf('うまくいった') >= 0;
-      const sm = x.q5.indexOf('少しうまくできた') >= 0 || x.q5.indexOf('少しうまくいった') >= 0;
-      const b  = x.q5.indexOf('うまくできなかった') >= 0 || x.q5.indexOf('うまくいかなかった') >= 0;
-      x.cls = g ? 'good' : sm ? 'some' : b ? 'bad' : 'other';
-      x.multi = x.q4.length > 1;
-    });
-
-    const tmap = {};
-    recs.forEach(function(x, idx) {
-      x.q4.forEach(function(t) {
-        const o = tmap[t] = tmap[t] || { label: t, count: 0, last: -1 };
-        o.count++;
-        o.last = idx;
-      });
-    });
-    const themeAll = Object.keys(tmap).map(function(k) { return tmap[k]; })
-      .sort(function(a, b) { return (b.count - a.count) || (b.last - a.last); });
-
-    const FOCUS_ROWS = 20, CELL_MAX = 30; // 選んだテーマはすべて返す（基本5＋マイ3で最大8）
-    const cellRecs = recs.slice(-CELL_MAX);
-    const emptyCnt = function() { return { n: 0, good: 0, some: 0, bad: 0, other: 0, multi: 0 }; };
-    out.focusDates = { dates: cellRecs.map(function(x) { return formatDiaryDate_(x.dms); }), total: recs.length };
-    out.focus = themeAll.slice(0, FOCUS_ROWS).map(function(o) {
-      const chosen = recs.filter(function(x) { return x.q4.indexOf(o.label) >= 0; });
-      let run = 0;
-      for (let i = recs.length - 1; i >= 0 && recs[i].q4.indexOf(o.label) >= 0; i--) run++;
-      const row = {
-        label: o.label, count: o.count, run: run,
-        cells: cellRecs.map(function(x) { return x.q4.indexOf(o.label) >= 0 ? { c: x.cls, m: x.multi ? 1 : 0 } : null; }),
-        seq: chosen.slice(-CELL_MAX).map(function(x) { return { d: formatDiaryDate_(x.dms), c: x.cls, m: x.multi ? 1 : 0 }; }),
-        seqTotal: chosen.length
-      };
-      if (chosen.length >= ANALYZE_MIN_DAYS * 2) {
-        const half = Math.floor(chosen.length / 2);
-        const tally = function(list) {
-          const t = emptyCnt();
-          list.forEach(function(x) { t.n++; t[x.cls]++; if (x.multi) t.multi++; });
-          t.from = formatDiaryDate_(list[0].dms); t.to = formatDiaryDate_(list[list.length - 1].dms);
-          return t;
-        };
-        row.halves = { first: tally(chosen.slice(0, half)), second: tally(chosen.slice(half)) };
+    if (hkOpenPicker === i) {
+      extra = '<div class="hk-picker">' + HK_TYPES.map(function(t) {
+        const on = !!me && (rx[t.k] || []).indexOf(me) >= 0;
+        return '<button class="hk-chip' + (on ? ' on' : '') + '" onclick="hkReact(' + i + ',\'' + t.k + '\')">' + t.icon + ' ' + t.label + '</button>';
+      }).join('') + '<button class="hk-chip' + (hkCommentFor === i ? ' on' : '') + '" onclick="hkOpenComment(' + i + ')">💬 コメント</button></div>';
+      if (hkCommentFor === i) {
+        extra += '<div class="hk-cm-form">'
+          + '<input type="text" id="hk-cm-input" maxlength="' + HK_CM_MAX + '" placeholder="' + escH(hkDn(it.name)).replace(/"/g, '&quot;') + 'さんにだけ届きます（' + HK_CM_MAX + '字まで）" oninput="hkCmCount(this)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();hkSendComment(' + i + ');}">'
+          + '<button class="hk-cm-send" onclick="hkSendComment(' + i + ')">送る</button>'
+          + '</div><div class="hk-cm-count" id="hk-cm-count">0 / ' + HK_CM_MAX + '</div>';
       }
-      return row;
-    });
-    out.others = themeAll.slice(FOCUS_ROWS).map(function(o) { return { label: o.label, count: o.count }; });
-
-    return respond_(out, callback);
-  } catch (err) {
-    return respond_({ status: 'error', message: err.message }, callback);
-  }
+    }
+    // 1行目：日付・名前（左）＋リアクション（右）／2行目：一言（2行まで、タップで全文）
+    return '<div class="hk-item' + (mine ? ' mine' : '') + '">'
+      + '<div class="hk-meta"><span class="hk-meta-who"><span class="hk-date">' + escH(it.date) + '</span><span class="hk-name">' + escH(hkDn(it.name)) + '</span></span>'
+      + (chips ? '<span class="hk-rx">' + chips + '</span>' : '') + '</div>'
+      + '<div class="hk-text" onclick="this.classList.toggle(\'open\')">' + escH(it.text) + '</div>'
+      + extra
+      + '</div>';
+  }).join('');
+  drawMyReactions();
+  hkUpdateBadge();
 }
 
-// 仲間からの反応（本人宛てのリアクション・コメント、期間内の受信分）
-function buildPeerFeedback_(name, inPeriod) {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
-  const disp = getDisplayNames_(ss);
-  const dn = function(n) { return disp[n] || n; };
-  const out = { reactions: { nice: 0, wakaru: 0, sanko: 0 }, reactors: [], comments: [], commentTotal: 0 };
-
-  const rs = ss.getSheetByName('リアクション');
-  if (rs && rs.getLastRow() >= 2) {
-    const who = {};
-    rs.getRange(2, 1, rs.getLastRow() - 1, 4).getDisplayValues().forEach(function(r) {
-      if (normalizeName(String(r[0]).split('|')[0]) !== name) return;
-      if (!out.reactions.hasOwnProperty(r[1])) return;
-      if (!inPeriod(toMillis_(r[3]))) return;
-      out.reactions[r[1]]++;
-      const w = normalizeName(r[2]);
-      if (w) who[w] = (who[w] || 0) + 1;
-    });
-    out.reactors = Object.keys(who).map(function(w) { return { name: dn(w), count: who[w] }; })
-      .sort(function(a, b) { return b.count - a.count; });
-  }
-
-  const cs = ss.getSheetByName('コメント');
-  if (cs && cs.getLastRow() >= 2) {
-    const list = [];
-    cs.getRange(2, 1, cs.getLastRow() - 1, 5).getDisplayValues().forEach(function(r) {
-      if (normalizeName(r[1]) !== name) return;
-      const ms = toMillis_(r[4]);
-      if (!inPeriod(ms)) return;
-      list.push({ from: dn(normalizeName(r[2])), text: r[3], ms: ms, date: formatDiaryDate_(ms) });
-    });
-    list.sort(function(a, b) { return b.ms - a.ms; });
-    out.commentTotal = list.length;
-    out.comments = list.slice(0, ANALYZE_COMMENT_MAX).map(function(c) { return { from: c.from, text: c.text, date: c.date }; });
-  }
-  return out;
+// 既読管理：自分の今の一言について「見た時点で誰の反応があったか」を端末に保存し、
+// それ以降に増えた人を新着とする（GASの時刻情報に頼らないので、どの版のGASでも動く）
+const LS_HK_SEEN = 'kd_hk_seen'; // {id, r:{nice:[名前],...}, c:[コメントのキー]}
+function hkSeenGet(id) {
+  try { const o = JSON.parse(LS.get(LS_HK_SEEN) || '{}'); return (o.id === id) ? o : { id: id, r: {}, c: [] }; }
+  catch(e) { return { id: id, r: {}, c: [] }; }
 }
+function hkCmKey(c) { return String(c.from) + '|' + String(c.text) + '|' + String(c.ms || ''); }
+// 「あなたの一言」カード：自分の一言を常時表示。届いた反応は見出し右の「〇人から届きました ›」を押すと開く。
+// 前回見た後に届いたものがあるときはカードを金色にし、開いたら既読にする（開いた時の新着の名前は太字）。
+let hkNoticeOpen = false;   // 上部のお知らせを開いているか
+let hkShineId = '';         // 光らせた一言のID（ページを開いて最初の1回だけ光らせる）
+let hkJustSeen = null;      // 開いた時点で新着だった人（このページ表示中は太字のまま）
+function hkMyAllPeople(mine) {
+  const who = [];
+  HK_TYPES.forEach(function(t) { ((mine.reactions || {})[t.k] || []).forEach(function(n) { if (who.indexOf(n) < 0) who.push(n); }); });
+  hkMyComments.forEach(function(c) { if (who.indexOf(c.from) < 0) who.push(c.from); });
+  return who;
+}
+function drawMyReactions() {
+  const me = hkMe();
+  const mine = hkItems.find(function(x) { return me && x.name === me; });
+  // 仲間の一言の呼びかけ：自分の一言に反応をもらったことがある人にだけ出す（他の人の一言があるとき）
+  const nudge = document.getElementById('hk-nudge');
+  const nwrap = document.getElementById('my-notice-wrap');
+  const notice = document.getElementById('my-notice');
+  const nbody = document.getElementById('my-notice-body');
+  if (nudge) nudge.style.display = 'none';
+  if (!nwrap || !notice || !nbody) return;
+  nwrap.style.display = 'none';
+  if (!mine || !mine.id) { hkNoticeOpen = false; return; }
+  if (hkMyCommentsId !== mine.id) hkMyComments = [];
+  // コメントの読み込みが終わるまでは出さない（途中の人数や色が一瞬出て切り替わるのを防ぐ）
+  if (hkMyCommentsId !== mine.id) return;
+  const rx = mine.reactions || {};
+  const all = hkMyAllPeople(mine);
+  if (!all.length) { hkNoticeOpen = false; return; } // 反応が1件もなければ何も出さない
+  if (nudge && hkItems.some(function(x) { return x.name !== me; })) nudge.style.display = 'block';
+  const nw = hkNewSince(mine);
+  // 開いて既読にした後も、このページを見ている間は「届きました 🎉」のまま（押した直後に表示が変わらないように）
+  const justN = (hkJustSeen || []).filter(function(x) { return all.indexOf(x) >= 0; }).length;
+  const newN = Math.max(nw.who.length, justN);
+  const goText = hkNoticeOpen ? '閉じる ▲' : (newN ? '見る ›' : '›');
+  const go = '<span class="go"></span>';
+  // 光は、ページを開いて未読の新着を最初に表示したときだけ（再描画で光り直さない）
+  if (nw.who.length && !hkShineId) hkShineId = mine.id;
+  const shine = newN && hkShineId === mine.id;
+  notice.className = 'my-notice' + (newN ? ' is-new' : '') + (shine ? ' shine' : '') + (hkNoticeOpen ? ' open' : '');
+  const nhtml = newN
+    ? '<span class="my-cheer" aria-hidden="true">🎉</span>' + escH(mine.date) + 'の一言に' + newN + '人から届きました' + go
+    : escH(mine.date) + 'の一言に' + all.length + '人から届いています' + go;
+  // 内容が変わったときだけ書き換える（毎回書き換えると🎉の動きが再描画のたびにやり直しになるため）
+  if (notice._html !== nhtml) { notice.innerHTML = nhtml; notice._html = nhtml; }
+  const goEl = notice.querySelector('.go');
+  if (goEl && goEl.textContent !== goText) goEl.textContent = goText;
+  if (hkNoticeOpen) {
+    const bold = hkJustSeen || [];
+    const nm = function(n) { const d = escH(hkDn(n)); return bold.indexOf(n) >= 0 ? '<b class="my-new">' + d + '</b>' : d; };
+    const lines = HK_TYPES.filter(function(t) { return (rx[t.k] || []).length; }).map(function(t) {
+      return '<div class="my-line">' + t.icon + ' ' + rx[t.k].map(nm).join('、') + '<span class="my-lbl">が' + t.label + '</span></div>';
+    }).join('') + hkMyComments.map(function(c) {
+      return '<div class="my-line">💬 ' + nm(c.from) + '「' + escH(c.text) + '」</div>';
+    }).join('');
+    nbody.innerHTML = '<div class="my-notice-label">前回の一言</div><div class="my-text">' + escH(mine.text) + '</div><div class="my-rx">' + lines + '</div>';
+    nbody.style.display = 'block';
+  } else {
+    nbody.style.display = 'none';
+  }
+  nwrap.style.display = 'block';
+}
+// 開いている状態で見えている新着を既読にする（コメントの読み込みが後から終わった場合も呼ばれる）
+function hkMarkMySeen(mine) {
+  if (!mine || !mine.id) return;
+  if (hkMyCommentsId !== mine.id) hkMyComments = [];
+  const n = hkNewSince(mine);
+  hkJustSeen = (hkJustSeen || []).concat(n.who.filter(function(x) { return (hkJustSeen || []).indexOf(x) < 0; }));
+  const seen = hkSeenGet(mine.id);
+  seen.r = seen.r || {};
+  HK_TYPES.forEach(function(t) { seen.r[t.k] = ((mine.reactions || {})[t.k] || []).slice(); });
+  if (hkMyCommentsId === mine.id) seen.c = hkMyComments.map(hkCmKey);
+  LS.set(LS_HK_SEEN, JSON.stringify(seen));
+}
+// 上部の1行を押す：その場で自分の一言と届いた反応を開閉する（開いたら既読）
+function hkToggleNotice() {
+  const me = hkMe();
+  const mine = hkItems.find(function(x) { return me && x.name === me; });
+  if (!mine) return;
+  hkNoticeOpen = !hkNoticeOpen;
+  if (hkNoticeOpen) hkMarkMySeen(mine);
+  drawMyReactions();
+}
+// 前回見た後に届いたリアクション・コメントの送り主を返す（前回見た時にいなかった人＝新着）
+function hkNewSince(mine) {
+  const seen = hkSeenGet(mine.id);
+  const sr = seen.r || {}, sc = seen.c || [];
+  const who = [], types = [];
+  HK_TYPES.forEach(function(t) {
+    const before = sr[t.k] || [];
+    const added = ((mine.reactions || {})[t.k] || []).filter(function(n) { return before.indexOf(n) < 0; });
+    if (added.length) { types.push(t); added.forEach(function(n) { if (who.indexOf(n) < 0) who.push(n); }); }
+  });
+  const newCm = hkMyComments.filter(function(c) { return sc.indexOf(hkCmKey(c)) < 0; });
+  newCm.forEach(function(c) { if (who.indexOf(c.from) < 0) who.push(c.from); });
+  return { who: who, types: types, cm: newCm.length };
+}
+
+function hkToggleNames(i, k) {
+  hkOpenPicker = null;
+  hkOpenNames = (hkOpenNames && hkOpenNames.i === i && hkOpenNames.k === k) ? null : { i: i, k: k };
+  drawHitokoto();
+}
+
+function hkTogglePicker(i) {
+  hkOpenNames = null;
+  hkOpenPicker = (hkOpenPicker === i) ? null : i;
+  hkCommentFor = null;
+  drawHitokoto();
+}
+
+// ===== コメント（書かれた本人にだけ表示） =====
+const HK_CM_MAX = 30;
+let hkCommentFor = null; // コメント入力欄を開いている行
+let hkMyComments = [];   // 自分の一言に届いたコメント
+let hkMyCommentsId = ''; // 上のコメントがどの一言（対象ID）の分か
+
+function hkOpenComment(i) {
+  if (!hkMe()) { showToast('⚠ 先にニックネームを入力してください'); editDiaryName(); return; }
+  hkCommentFor = (hkCommentFor === i) ? null : i;
+  drawHitokoto();
+  const el = document.getElementById('hk-cm-input');
+  if (el) el.focus();
+}
+function hkCmCount(el) {
+  const c = document.getElementById('hk-cm-count');
+  if (c) c.textContent = el.value.length + ' / ' + HK_CM_MAX;
+}
+function hkSendComment(i) {
+  const it = hkItems[i];
+  const el = document.getElementById('hk-cm-input');
+  const me = hkMe();
+  if (!it || !it.id || !el) return;
+  const text = el.value.replace(/[\r\n]+/g, ' ').trim();
+  if (!text) { showToast('⚠ コメントを入力してください'); el.focus(); return; }
+  if (text.length > HK_CM_MAX) { showToast('⚠ ' + HK_CM_MAX + '字以内にしてください'); return; }
+  if (!me || me === it.name) return;
+  const sendBtn = document.querySelector('.hk-cm-send');
+  if (sendBtn) { if (sendBtn.disabled) return; sendBtn.disabled = true; sendBtn.textContent = '送信中'; }
+  gasPost({ action: 'addComment', targetId: it.id, text: text, commenter: me })
+  .then(function() {
+    showToast('✓ ' + hkDn(it.name) + 'さんにだけ届けました');
+    hkCommentFor = null; hkOpenPicker = null;
+    drawHitokoto();
+  })
+  .catch(function(e) {
+    showToast('⚠ 送れませんでした（' + gasErrMsg(e) + '）。もう一度送ってください');
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '送る'; }
+  });
+}
+// 自分の今の一言に届いたコメントを取得（他の人の分は取得しない）
+function hkLoadMyComments() {
+  const me = hkMe();
+  const mine = hkItems.find(function(x) { return me && x.name === me; });
+  if (!mine || !mine.id) { hkMyComments = []; hkMyCommentsId = ''; drawMyReactions(); return; }
+  const reqId = mine.id;
+  fetch(GAS_URL + '?' + new URLSearchParams({ action: 'getMyComments', name: me, id: mine.id }).toString())
+  .then(function(r) { return r.json(); })
+  .then(function(j) {
+    const now = hkItems.find(function(x) { return x.name === hkMe(); });
+    if (!now || now.id !== reqId) return; // 取得中に名前が変わった場合は捨てる
+    hkMyComments = (j.status === 'ok' && Array.isArray(j.comments)) ? j.comments : [];
+    hkMyCommentsId = reqId;
+    if (hkNoticeOpen) hkMarkMySeen(now); // 開いたまま届いたコメントも既読に
+    drawMyReactions();
+  })
+  .catch(function() {
+    // 取得できなくても、リアクションの表示は出す
+    const now = hkItems.find(function(x) { return x.name === hkMe(); });
+    if (!now || now.id !== reqId) return;
+    hkMyComments = []; hkMyCommentsId = reqId; drawMyReactions();
+  });
+}
+
+// リアクションの付与／取り消し：画面は先に反映し、送信は裏で行う
+function hkReact(i, k) {
+  const it = hkItems[i];
+  if (!it || !it.id) return;
+  const me = hkMe();
+  if (!me) {
+    showToast('⚠ 先にニックネームを入力してください');
+    editDiaryName();
+    highlightMissing(document.getElementById('diary-name'));
+    return;
+  }
+  if (me === it.name) return;
+  it.reactions = it.reactions || {};
+  const arr = it.reactions[k] = it.reactions[k] || [];
+  const j = arr.indexOf(me);
+  if (j >= 0) arr.splice(j, 1);
+  else arr.push(me);
+  hkOpenPicker = null;
+  hkOpenNames = arr.length ? { i: i, k: k } : null;
+  drawHitokoto();
+  gasPost({ action: 'toggleReaction', targetId: it.id, type: k, reactor: me })
+  .catch(function(e) {
+    // 届かなかったので、画面の表示を押す前の状態に戻す
+    const a = (it.reactions || {})[k] || [];
+    const at = a.indexOf(me);
+    if (j >= 0) { if (at < 0) a.push(me); } else if (at >= 0) a.splice(at, 1);
+    drawHitokoto();
+    showToast('⚠ 届きませんでした（' + gasErrMsg(e) + '）。もう一度押してください');
+  });
+}
+
+// 日記提出直後：自分の一言を先頭に置き換え、少し待って正式なデータを取り直す
+function hkAfterSubmit(name, text, dateKey) {
+  const n = normNick(name);
+  const t = String(text || '').trim();
+  if (n && t) {
+    const label = dateLabel(dateKey || jstKey(0));
+    hkItems = hkItems.filter(function(x) { return x.name !== n; });
+    hkItems.unshift({ id: '', name: n, text: t, date: label, reactions: {} });
+    hkOpenNames = null; hkOpenPicker = null;
+    drawHitokoto();
+  }
+  setTimeout(loadNews, 1500);
+  // 提出後は完了表示を出す（タブは自動で切り替えない。「仲間の一言を見る」で本人が切り替える）
+  const done = document.getElementById('diary-done');
+  if (done) done.style.display = 'flex';
+}
+
+// ===== 日記をつける／仲間の一言 の切り替え =====
+const LS_HK_PEERS_SEEN = 'kd_hk_peers_seen'; // 「仲間の一言」を開いた時点で見えていた一言のID
+function hkPeersSeen() { try { return JSON.parse(LS.get(LS_HK_PEERS_SEEN) || '[]'); } catch(e) { return []; } }
+function hkOthers() {
+  const me = hkMe();
+  return hkItems.filter(function(x) { return x.id && !(me && x.name === me); });
+}
+// 「仲間の一言」ボタンの赤い数字：前回このタブを開いた後に増えた（または書き直された）仲間の一言の数
+function hkUpdateBadge() {
+  const badge = document.getElementById('seg-badge');
+  if (!badge) return;
+  const peersOn = (document.getElementById('pane-peers') || {}).className === 'diary-pane on';
+  if (peersOn) hkMarkPeersSeen();
+  const seen = hkPeersSeen();
+  const fresh = hkOthers().filter(function(x) { return seen.indexOf(x.id) < 0; });
+  const n = fresh.length;
+  badge.textContent = n > 9 ? '9+' : String(n);
+  badge.style.display = n ? 'inline-block' : 'none';
+  // ボタンの中（2行目）に、新しく書いた仲間の名前を出す（新しい順・2人まで名前、3人以上は「ほか◯人」）
+  const namesEl = document.getElementById('seg-names');
+  if (namesEl) {
+    if (n && !peersOn) {
+      const names = fresh.map(function(x) { return hkDn(x.name); });
+      namesEl.textContent = n <= 2 ? names.join('・') : names.slice(0, 2).join('・') + ' ほか' + (n - 2) + '人';
+      namesEl.style.display = 'block';
+    } else {
+      namesEl.style.display = 'none';
+    }
+  }
+}
+function hkMarkPeersSeen() {
+  LS.set(LS_HK_PEERS_SEEN, JSON.stringify(hkOthers().map(function(x) { return x.id; })));
+}
+function hkSwitchPane(p) {
+  if (['write', 'peers', 'ana'].indexOf(p) < 0) p = 'write';
+  ['write', 'peers', 'ana'].forEach(function(k) {
+    const pane = document.getElementById('pane-' + k), btn = document.getElementById('seg-' + k);
+    if (pane) pane.className = 'diary-pane' + (k === p ? ' on' : '');
+    if (btn) { btn.className = k === p ? 'on' : ''; btn.setAttribute('aria-selected', String(k === p)); }
+  });
+  const news = document.getElementById('tab-news');
+  if (news) news.classList.toggle('peers-mode', p !== 'write');
+  hkUpdateBadge();
+  if (p === 'ana') openAnalysis();
+  // 切り替えボタンが上部の固定タブに隠れる位置までスクロールしていたら、見える位置まで戻す
+  const seg = document.querySelector('.diary-seg');
+  const bar = document.querySelector('.tab-bar');
+  const barBottom = bar ? bar.getBoundingClientRect().bottom : 0;
+  if (seg && seg.getBoundingClientRect().top < barBottom && seg.scrollIntoView) seg.scrollIntoView({ block: 'start' });
+}
+
+</script>
+</body>
+</html>
