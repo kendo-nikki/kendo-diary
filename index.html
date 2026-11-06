@@ -139,6 +139,10 @@ input, textarea { -webkit-appearance: none; appearance: none; }
 .diary-name-input:focus, .diary-dojo-code-row input:focus, .diary-free:focus, .my-set-row input:focus, .hk-cm-form input:focus { box-shadow: 0 0 0 2px var(--tint); background: var(--card); }
 ::placeholder { color: var(--label3); }
 .diary-name-ok { display: block; width: 100%; height: 52px; margin-top: 20px; border: 0; border-radius: var(--r-m); background: var(--grad); color: var(--on-tint); font-size: var(--t-lg); font-weight: 700; letter-spacing: .08em; }
+.diary-pin { letter-spacing: .4em; font-variant-numeric: tabular-nums; }
+.diary-pin::placeholder { letter-spacing: .04em; }
+.diary-pin-hint { margin-top: 8px; font-size: var(--t-xs); color: var(--label2); line-height: 1.6; }
+.diary-name-taken button { display: block; margin-top: 8px; padding: 0; border: 0; background: none; color: var(--tint); font-size: var(--t-sm); font-weight: 600; text-align: left; }
 .diary-name-hint { margin-top: 12px; font-size: var(--t-sm); color: var(--label2); line-height: 1.6; }
 .diary-name-hint b, .req-mark { color: var(--accent); }
 .req-mark { margin-left: 4px; }
@@ -146,9 +150,22 @@ input, textarea { -webkit-appearance: none; appearance: none; }
 /* アイコン選び */
 .icon-picker { margin: 12px 0; padding: 16px; }
 .icon-preview { display: flex; align-items: center; gap: 12px; font-size: var(--t-sm); color: var(--label2); }
-.icon-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin: 16px 0 12px; }
+.icon-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+/* まとまりの切り替え（動物・自然・和と武道・いろいろ・一字） */
+.icon-tabs { display: flex; gap: 4px; margin-top: 16px; padding: 4px; border-radius: var(--r-m); background: var(--fill); overflow-x: auto; scrollbar-width: none; }
+.icon-tabs::-webkit-scrollbar { display: none; }
+.icon-tab { flex: 1 0 auto; min-height: 36px; padding: 0 10px; border: 0; border-radius: var(--r-s); background: transparent; color: var(--label2); font-size: var(--t-sm); font-weight: 600; white-space: nowrap; }
+.icon-tab.on { background: var(--card); color: var(--label); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+/* 一字アイコン：墨の筆文字のように、明朝体の太字で */
+.av-ji-t { font-family: "Hiragino Mincho ProN", "Yu Mincho", YuMincho, "Noto Serif JP", "Noto Serif CJK JP", serif; font-weight: 700; color: #1C1C1E; line-height: 1; }
+.av.av-ji { font-size: .95em; }
+.av-sm.av-ji { font-size: 12px; }
+.av-md.av-ji, .av-lg.av-ji { font-size: 24px; }
+.icon-grid.ji .icon-em { font-size: var(--t-xl); }
+.icon-em .av-ji-t { color: var(--label); } /* 選ぶ画面のマスは暗い画面でも読めるように */
 .icon-em { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; padding: 0; border: 2px solid transparent; border-radius: var(--r-m); background: var(--raised); font-size: var(--t-xl); }
 .icon-em.on { border-color: var(--tint); background: var(--card); }
+.icon-em-pad { aspect-ratio: 1; }
 .icon-colors { display: flex; flex-wrap: wrap; gap: 8px; }
 .icon-col { width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; }
 .icon-col.on { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--tint); }
@@ -493,6 +510,8 @@ body.kd-noname .diary-submit-need { display: block; }
 .hk-picker { display: flex; flex-wrap: wrap; gap: 8px; }
 .hk-picker .hk-chip { background: var(--raised); box-shadow: none; }
 .hk-picker .hk-chip.on { background: var(--tint-soft); }
+.hk-picker .hk-report { margin-left: auto; background: transparent; color: var(--label2); }
+.my-report { margin-left: 8px; padding: 0; border: 0; background: none; color: var(--label3); font-size: var(--t-xs); text-decoration: underline; }
 .hk-cm-form { display: flex; gap: 8px; width: min(76vw, 420px); }
 .hk-cm-form input { flex: 1; min-width: 0; height: 40px; padding: 0 16px; border-radius: var(--r-full); }
 .hk-cm-send { flex-shrink: 0; height: 40px; padding: 0 16px; border: 0; border-radius: var(--r-full); background: var(--grad); color: var(--on-tint); font-size: var(--t-md); font-weight: 600; }
@@ -504,6 +523,20 @@ body.kd-noname .diary-submit-need { display: block; }
 /* ---------- フッター・知らせ ---------- */
 .site-footer { margin-top: 32px; padding: 16px 0; text-align: center; font-size: var(--t-xs); color: var(--label3); }
 .site-footer-ver { margin-top: 4px; opacity: .7; }
+/* 下から出る画面 */
+.kd-sheet { position: fixed; inset: 0; z-index: 900; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,.36); animation: kdFade .2s both; }
+.kd-sheet-card { width: 100%; max-width: 560px; padding: 24px 20px calc(20px + env(safe-area-inset-bottom)); border-radius: var(--r-l) var(--r-l) 0 0; background: var(--card); color: var(--label); animation: kdIn .25s var(--ease) both; }
+.kd-sheet-t { font-size: var(--t-lg); font-weight: 700; }
+.kd-sheet-s { margin-top: 8px; font-size: var(--t-sm); color: var(--label2); line-height: 1.6; }
+.kd-sheet-q { margin-top: 12px; padding: 12px; border-radius: var(--r-m); background: var(--raised); font-size: var(--t-sm); line-height: 1.6; word-break: break-word; }
+.kd-sheet-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.kd-sheet-btns button { min-height: 48px; border: 0; border-radius: var(--r-m); background: var(--raised); color: var(--label); font-size: var(--t-md); font-weight: 600; }
+.kd-sheet-btns button.main { background: var(--grad); color: var(--on-tint); }
+.kd-sheet-btns button.ghost { background: transparent; color: var(--label2); font-weight: 500; }
+.kd-sheet-msg { min-height: 1.6em; margin-top: 8px; font-size: var(--t-sm); color: var(--accent-ink); }
+.kd-pin { display: block; width: 100%; height: 52px; margin-top: 16px; padding: 0 16px; border: 0; border-radius: var(--r-m); background: var(--raised); color: var(--label); font-size: var(--t-xl); letter-spacing: .5em; text-align: center; font-variant-numeric: tabular-nums; }
+.kd-pin:focus { outline: none; box-shadow: 0 0 0 2px var(--tint); }
+body.kd-sheet-open { overflow: hidden; }
 .toast { position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom)); z-index: 950; width: max-content; max-width: min(calc(100vw - 32px), 420px); padding: 12px 20px; border-radius: var(--r-l); line-height: 1.5;
   background: rgba(28,30,36,.94); color: #fff; font-size: var(--t-md); text-align: center;
   transform: translateX(-50%) translateY(12px); opacity: 0; visibility: hidden; transition: opacity .2s, transform .2s, visibility .2s; }
@@ -600,6 +633,9 @@ body.kd-noname .diary-submit-need { display: block; }
           <input type="text" id="diary-name" class="diary-name-input" placeholder="ニックネーム（20字まで）" maxlength="20" autocomplete="nickname" oninput="onDiaryNameInput(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmDiaryName();}">
         </div>
         <div class="diary-name-taken" id="diary-name-taken" style="display:none;"></div>
+        <label class="diary-name-label" for="diary-pin">合言葉（数字4桁）<span class="req-mark">*</span></label>
+        <input type="password" id="diary-pin" class="diary-name-input diary-pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="new-password" placeholder="例：0000〜9999" oninput="this.value=this.value.replace(/[０-９]/g,function(z){return String.fromCharCode(z.charCodeAt(0)-0xFEE0)}).replace(/[^0-9]/g,'').slice(0,4)">
+        <div class="diary-pin-hint">スマホを変えたときに、本人と確かめるために使います。忘れないようにしてください。</div>
         <div class="diary-dojo-code-row">
           <label for="diary-dojo-code">道場コード<span>任意・空欄なら自動で決まります</span></label>
           <input type="text" id="diary-dojo-code" maxlength="12" placeholder="仲間から聞いたコード" autocomplete="off" autocapitalize="characters" oninput="onDiaryNameInput(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmDiaryName();}">
@@ -763,7 +799,7 @@ body.kd-noname .diary-submit-need { display: block; }
   <!-- フッター：著作権表示 -->
   <footer class="site-footer">
     <div class="site-footer-copy">© 2026 MARC PROGRAM　無断転載・複製を禁じます</div>
-    <div class="site-footer-ver">ver. 2027-v27</div>
+    <div class="site-footer-ver">ver. 2027-v29</div>
   </footer>
 
 </div>
@@ -784,6 +820,34 @@ const LS = {
   remove: function(key) { try { localStorage.removeItem(key); } catch(e) {} }
 };
 
+// ===== 本人確認：端末の鍵（ニックネームを決めた端末に自動で持たせる。本人は意識しない） =====
+const LS_KEY = 'kd_key';
+let _memKey = '';
+let _memKeyName = '';
+function kdKey() { return LS.get(LS_KEY) || _memKey; }
+function kdKeyName() { return LS.get(LS_KEY + '_name') || _memKeyName; }
+function kdSetKey(k, name) { _memKey = k; _memKeyName = name || ''; LS.set(LS_KEY, k); LS.set(LS_KEY + '_name', name || ''); }
+function kdNewKey() {
+  const a = new Uint8Array(16);
+  (window.crypto || window.msCrypto).getRandomValues(a);
+  return Array.from(a, function(b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+}
+// GAS への読み出しのURL（鍵を添える）
+function kdUrl(params) {
+  return GAS_URL + '?' + new URLSearchParams(Object.assign({}, params, { key: kdKey(), _: Date.now() })).toString();
+}
+// GAS が「本人確認ができない」と返したら、合言葉の画面を出す（どの読み出し・書き込みでも）
+(function() {
+  const _fetch = window.fetch.bind(window);
+  window.fetch = function(u, o) {
+    const p = _fetch(u, o);
+    if (String(u).indexOf(GAS_URL) === 0) {
+      p.then(function(r) { return r.clone().json(); }).then(function(j) { if (j && j.code === 'auth') kdNeedAuth(); }).catch(function() {});
+    }
+    return p;
+  };
+})();
+
 function todayJST() {
   return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
 }
@@ -795,6 +859,25 @@ function showToast(msg) {
   t.classList.add('show');
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ===== 下から出る画面（通報・合言葉で共通） =====
+function kdSheetClose() {
+  const o = document.getElementById('kd-sheet');
+  if (o) o.remove();
+  document.body.classList.remove('kd-sheet-open');
+}
+function kdSheetOpen(html, opt) {
+  kdSheetClose();
+  const o = document.createElement('div');
+  o.id = 'kd-sheet'; o.className = 'kd-sheet';
+  o.innerHTML = '<div class="kd-sheet-card" role="dialog" aria-modal="true">' + html + '</div>';
+  if (!(opt && opt.locked)) o.addEventListener('click', function(e) { if (e.target === o) kdSheetClose(); });
+  document.body.appendChild(o);
+  document.body.classList.add('kd-sheet-open');
+  const f = o.querySelector('input, button');
+  if (f && !(opt && opt.noFocus)) setTimeout(function() { f.focus(); }, 50);
+  return o;
 }
 
 // 入力漏れの欄を赤枠で示し、見える位置までスクロールする
@@ -812,19 +895,48 @@ function gasPost(obj) {
   return fetch(GAS_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(Object.assign({ _token: WRITE_TOKEN }, obj))
+    body: JSON.stringify(Object.assign({ _token: WRITE_TOKEN, _key: kdKey() }, obj))
   })
   .then(function(r) { return r.json(); })
   .then(function(j) {
-    if (!j || j.status !== 'ok') { const e = new Error((j && j.message) || '保存できませんでした'); e.fromServer = true; throw e; }
+    if (!j || j.status !== 'ok') { const e = new Error((j && j.message) || '保存できませんでした'); e.fromServer = true; e.code = j && j.code; throw e; }
     return j;
   });
 }
 function gasErrMsg(e) { return (e && e.fromServer) ? e.message : '通信できませんでした'; }
 
 // ===== アイコン（絵文字＋背景色。保存するのは番号だけ） =====
-// 絵文字は古いスマホでも出る、昔からある絵文字だけ（GAS の ICON_EMOJI_COUNT と数を合わせる）
-const ICON_EMOJI = ['🐯','🦊','🐻','🐼','🐶','🐱','🦁','🐸','🐧','🦅','🐉','🐢','🌸','🔥','⚡','🌙','⭐','🍙','🍵','🌊','🗻','🎯','🏯','🌻'];
+// アイコンは「何番目か」で保存する。今の利用者の絵が変わらないよう、新しい絵は必ず後ろに足す（GAS の ICON_EMOJI_COUNT と数を合わせる）
+// 絵文字は、古いスマホでも出る Emoji 3.0（2016年・Unicode 9.0）までのものだけ（iPhone は iOS 10.2 以降で全部出る）
+const ICON_EMOJI = [
+  // 0〜23：v28 までの24種類（順番を変えない）
+  '🐯','🦊','🐻','🐼','🐶','🐱','🦁','🐸','🐧','🦅','🐉','🐢','🌸','🔥','⚡','🌙','⭐','🍙','🍵','🌊','🗻','🎯','🏯','🌻',
+  // 24〜35：動物
+  '🐺','🦉','🐲','🦈','🐬','🐝','🦋','🐎','🐰','🐨','🐵','🐳',
+  // 36〜47：自然
+  '🌲','🍁','🌈','❄️','☀️','🌋','🌵','🍀','🌷','🌿','💧','🌀',
+  // 48〜59：和・武道
+  '🥋','🤺','⛩️','🎌','🏮','🎍','🎋','🍡','⚔️','🎎','🍘','🎐',
+  // 60〜71：いろいろ
+  '🎵','🚀','💎','🏆','🎸','⚽','⚾','🎲','🍓','🍩','🎨','💪',
+  // 72〜95：一字（運営が選んだ漢字だけ。自由入力にはしない）
+  '剣','心','技','体','気','礼','誠','道','勝','攻','守','和','破','離','忍','静','龍','虎','風','雷','光','炎','志','魂'
+];
+const ICON_JI_START = 72; // ここから後ろは一字アイコン（墨の文字で出す）
+// 選ぶ画面の分け方（番号の並び）
+const ICON_GROUPS = [
+  { k: 'animal', label: '動物',     ids: [0,1,2,3,4,5,6,7,8,9,10,11].concat(range_(24, 36)) },
+  { k: 'nature', label: '自然',     ids: [12,13,14,15,16,19,20,23].concat(range_(36, 48)) },
+  { k: 'wa',     label: '和・武道', ids: [17,18,21,22].concat(range_(48, 60)) },
+  { k: 'misc',   label: 'いろいろ', ids: range_(60, 72) },
+  { k: 'ji',     label: '一字',     ids: range_(72, 96) }
+];
+function range_(a, b) { const r = []; for (let i = a; i < b; i++) r.push(i); return r; }
+let iconTab = '';
+function iconGlyphHtml(i) {
+  const t = ICON_EMOJI[i] || ICON_EMOJI[0];
+  return i >= ICON_JI_START ? '<span class="av-ji-t">' + t + '</span>' : t;
+}
 const ICON_BG    = ['#DBE7FB','#D6F0EA','#E3F2D9','#FBEFC9','#FDE1CC','#F9D6D4','#E9DDF7','#E6E9EF']; // 薄い色（絵文字が見やすい）
 let icons = {};          // {名前: [絵文字番号, 色番号]}（同じ道場の仲間の分）
 let iconPick = { e: 0, c: 0 };
@@ -833,7 +945,7 @@ function nameHash(n) { let h = 0; String(n).split('').forEach(function(ch) { h =
 function avatarHtml(name, size) {
   const ic = icons[name];
   const cls = 'av' + (size ? ' av-' + size : '');
-  if (ic) return '<span class="' + cls + '" style="background:' + ICON_BG[ic[1]] + '" aria-hidden="true">' + ICON_EMOJI[ic[0]] + '</span>';
+  if (ic) return '<span class="' + cls + (ic[0] >= ICON_JI_START ? ' av-ji' : '') + '" style="background:' + ICON_BG[ic[1]] + '" aria-hidden="true">' + iconGlyphHtml(ic[0]) + '</span>';
   const ch = Array.from(String(name || '?'))[0] || '?';
   return '<span class="' + cls + ' av-init" style="background:' + ICON_BG[nameHash(name) % ICON_BG.length] + '" aria-hidden="true">' + escH(ch) + '</span>';
 }
@@ -859,16 +971,21 @@ function iconOpen() {
   if (box.style.display === 'block') { box.style.display = 'none'; return; }
   const cur = icons[me];
   iconPick = cur ? { e: cur[0], c: cur[1] } : { e: 0, c: nameHash(me) % ICON_BG.length };
+  iconTab = (ICON_GROUPS.find(function(g) { return g.ids.indexOf(iconPick.e) >= 0; }) || ICON_GROUPS[0]).k; // 今のアイコンのまとまりから開く
   iconRender();
   box.style.display = 'block';
 }
 function iconRender() {
   const box = document.getElementById('icon-picker');
   if (!box) return;
-  box.innerHTML = '<div class="icon-preview"><span class="av av-lg" style="background:' + ICON_BG[iconPick.c] + '">' + ICON_EMOJI[iconPick.e] + '</span><span>アイコンを選ぶ（道場の仲間に表示されます）</span></div>'
-    + '<div class="icon-grid">' + ICON_EMOJI.map(function(em, i) {
-        return '<button type="button" class="icon-em' + (i === iconPick.e ? ' on' : '') + '" onclick="iconPick.e=' + i + ';iconRender()" aria-label="絵文字' + (i + 1) + '">' + em + '</button>';
+  const grp = ICON_GROUPS.find(function(g) { return g.k === iconTab; }) || ICON_GROUPS[0];
+  box.innerHTML = '<div class="icon-preview"><span class="av av-lg' + (iconPick.e >= ICON_JI_START ? ' av-ji' : '') + '" style="background:' + ICON_BG[iconPick.c] + '">' + iconGlyphHtml(iconPick.e) + '</span><span>アイコンを選ぶ（道場の仲間に表示されます）</span></div>'
+    + '<div class="icon-tabs" role="tablist">' + ICON_GROUPS.map(function(g) {
+        return '<button type="button" role="tab" aria-selected="' + (g.k === grp.k) + '" class="icon-tab' + (g.k === grp.k ? ' on' : '') + '" onclick="iconTab=\'' + g.k + '\';iconRender()">' + g.label + '</button>';
       }).join('') + '</div>'
+    + '<div class="icon-grid' + (grp.k === 'ji' ? ' ji' : '') + '">' + grp.ids.map(function(i) {
+        return '<button type="button" class="icon-em' + (i === iconPick.e ? ' on' : '') + '" onclick="iconPick.e=' + i + ';iconRender()" aria-label="' + (i >= ICON_JI_START ? '一字 ' + ICON_EMOJI[i] : '絵文字' + (i + 1)) + '">' + iconGlyphHtml(i) + '</button>';
+      }).join('') + new Array(Math.max(0, 24 - grp.ids.length) + 1).join('<span class="icon-em-pad" aria-hidden="true"></span>') + '</div>' // どのまとまりでも4段にして、切り替えで高さが変わらないように
     + '<div class="icon-colors">' + ICON_BG.map(function(bg, i) {
         return '<button type="button" class="icon-col' + (i === iconPick.c ? ' on' : '') + '" style="background:' + bg + '" onclick="iconPick.c=' + i + ';iconRender()" aria-label="色' + (i + 1) + '"></button>';
       }).join('') + '</div>'
@@ -952,7 +1069,7 @@ function loadNews() {
     if (list) list.innerHTML = '<div class="hk-empty">' + KD_ART + 'ニックネームを決めると、道場に入って仲間の一言が見られます</div>';
     return;
   }
-  fetch(GAS_URL + '?' + new URLSearchParams({ action: 'getNews', name: me, _: Date.now() }).toString(), { method: 'GET' })
+  fetch(kdUrl({ action: 'getNews', name: me}), { method: 'GET' })
   .then(function(r){ return r.json(); })
   .then(function(data){
     if (confirmedNick() !== reqName) return; // 取得中に名前が変わった
@@ -1096,47 +1213,86 @@ function editDiaryName() {
 let _nameChecking = false;
 let _confirmedName = '';
 function confirmedNick() { return _confirmedName || normNick(LS.get(LS_NAME) || ''); }
-function confirmDiaryName(force) {
+function confirmDiaryName() {
   const el = document.getElementById('diary-name');
   const n = el ? normNick(el.value) : '';
   if (!n) { showToast('⚠ ニックネームを入力してください'); if (el) el.focus(); return Promise.resolve(false); }
   el.value = n;
   const prev = confirmedNick();
-  if (n === prev) { applyDiaryName(n); return Promise.resolve(true); }
+  if (n === prev && kdKey()) { applyDiaryName(n); return Promise.resolve(true); }
+  const pinEl = document.getElementById('diary-pin');
+  const pin = pinEl ? pinEl.value : '';
+  if (!/^[0-9]{4}$/.test(pin)) { showToast('⚠ 合言葉を数字4桁で決めてください'); if (pinEl) pinEl.focus(); return Promise.resolve(false); }
   if (_nameChecking) return Promise.resolve(false);
   _nameChecking = true;
   const ok = document.querySelector('.diary-name-ok');
   if (ok) { ok.disabled = true; ok.textContent = '確認中'; }
   const done = function() { _nameChecking = false; if (ok) { ok.disabled = false; ok.textContent = '決定'; } };
-  const code = String((document.getElementById('diary-dojo-code') || {}).value || '').trim();
-  // 道場に入ってから名前を決める（道場コードが違う・満員なら、名前も決めずに知らせる）
-  const join = function() {
-    return gasPost({ action: 'joinDojo', name: n, code: code })
-      .then(function(res) { done(); myDojo = res.dojo || null; applyDiaryName(n); return true; })
-      .catch(function(e) {
-        done();
-        if (e && e.fromServer) { showNameMsg(e.message); return false; }
-        applyDiaryName(n); return true; // 通信できないときは止めない（次に開いたときに道場へ入る）
-      });
-  };
-  if (force === true) { _nameChecking = true; return join(); }
-  return fetch(GAS_URL + '?' + new URLSearchParams({ action: 'checkName', name: n, _: Date.now() }).toString())
+  return fetch(kdUrl({ action: 'checkName', name: n }))
     .then(function(r) { return r.json(); })
     .then(function(j) {
-      if (j && j.status === 'ok' && j.used) {
+      if (!j || j.status !== 'ok') throw new Error('check');
+      // この端末で合言葉まで済ませた名前（道場コードが違って止まった後など）は、そのまま道場へ
+      if (j.used && j.registered && kdKey() && kdKeyName() === n) return kdNameAs('join', true);
+      if (j.used) {
         done();
         const t = document.getElementById('diary-name-taken');
         if (t) {
           t.innerHTML = '「' + escH(n) + '」はすでに使われています。別のニックネームにしてください。'
-            + '<button type="button" onclick="confirmDiaryName(true)">前にこの名前で記録した本人です（この名前で続ける）</button>';
+            + (j.registered
+              ? '<button type="button" onclick="kdNameAs(\'claim\')">本人です（上の合言葉で続ける）</button>'
+              : '<button type="button" onclick="kdNameAs(\'register\')">前にこの名前で記録した本人です（上の合言葉を決めて続ける）</button>');
           t.style.display = 'block';
         }
         el.focus();
         return false;
       }
-      return join();
+      return kdNameAs('register', true);
     })
-    .catch(function() { return join(); }); // 重複を確認できないときも止めない
+    .catch(function() {
+      done();
+      showNameMsg('通信できませんでした。電波のよい所で、もう一度「決定」を押してください');
+      return false;
+    });
+}
+// 合言葉で本人として登録（新しい名前）／続ける（使用中の名前）→ 道場に入って名前を決める
+function kdNameAs(mode, already) {
+  const el = document.getElementById('diary-name');
+  const n = el ? normNick(el.value) : '';
+  const pin = (document.getElementById('diary-pin') || {}).value || '';
+  if (!n) return Promise.resolve(false);
+  if (mode !== 'join' && !/^[0-9]{4}$/.test(pin)) { showToast('⚠ 合言葉を数字4桁で入れてください'); const p = document.getElementById('diary-pin'); if (p) p.focus(); return Promise.resolve(false); }
+  if (_nameChecking && !already) return Promise.resolve(false);
+  _nameChecking = true;
+  const ok = document.querySelector('.diary-name-ok');
+  if (ok) { ok.disabled = true; ok.textContent = '確認中'; }
+  const done = function() { _nameChecking = false; if (ok) { ok.disabled = false; ok.textContent = '決定'; } };
+  const code = String((document.getElementById('diary-dojo-code') || {}).value || '').trim();
+  const key = kdNewKey();
+  const first = mode === 'join' ? Promise.resolve()
+    : gasPost({ action: mode === 'claim' ? 'claimUser' : 'registerUser', name: n, pin: pin, key: key }).then(function() { kdSetKey(key, n); });
+  return first
+    .then(function() { return gasPost({ action: 'joinDojo', name: n, code: code }); })
+    .then(function(res) {
+      done();
+      myDojo = res.dojo || null;
+      const pe = document.getElementById('diary-pin'); if (pe) pe.value = '';
+      applyDiaryName(n);
+      return true;
+    })
+    .catch(function(e) {
+      done();
+      const t = document.getElementById('diary-name-taken');
+      if (mode === 'claim' && e && e.fromServer && t) {
+        // 合言葉ちがい・ロック中：理由を出し、合言葉を直してそのまま押し直せるようにする
+        t.innerHTML = escH(e.message) + '<button type="button" onclick="kdNameAs(\'claim\')">本人です（上の合言葉で続ける）</button>';
+        t.style.display = 'block';
+        const p = document.getElementById('diary-pin'); if (p) { p.value = ''; p.focus(); }
+      } else {
+        showNameMsg(e && e.fromServer ? e.message : '通信できませんでした。電波のよい所で、もう一度「決定」を押してください');
+      }
+      return false;
+    });
 }
 function showNameMsg(msg) {
   const t = document.getElementById('diary-name-taken');
@@ -1215,7 +1371,7 @@ function loadMyDates() {
   myDates = []; myRecs = {}; myDatesName = name; myMonth = { key: '', base: null, extra: [] };
   updateOverwrite();
   if (!name) return;
-  fetch(GAS_URL + '?' + new URLSearchParams({ action: 'getMyDates', name: name, _: Date.now() }).toString())
+  fetch(kdUrl({ action: 'getMyDates', name: name}))
   .then(function(r) { return r.json(); })
   .then(function(j) {
     if (confirmedNick() !== name || !j || j.status !== 'ok' || !Array.isArray(j.dates)) return;
@@ -1374,6 +1530,51 @@ function loadDiaryName() {
   const cached = normNick(LS.get(LS_NAME) || '');
   if (cached) { nameEl.value = cached; _confirmedName = cached; }
   refreshDiaryWho();
+  if (cached && !kdKey()) kdNeedAuth();
+}
+
+// 鍵がない（前の版から使っている端末など）・鍵が通らないとき：合言葉を入れてもらう
+let _authShown = false;
+function kdNeedAuth() {
+  const n = confirmedNick();
+  if (!n || _authShown) return;
+  _authShown = true;
+  fetch(kdUrl({ action: 'checkName', name: n }))
+    .then(function(r) { return r.json(); })
+    .then(function(j) { kdAuthSheet(n, j && j.registered ? 'claim' : 'register'); })
+    .catch(function() { _authShown = false; });
+}
+function kdAuthSheet(n, mode) {
+  const claim = mode === 'claim';
+  kdSheetOpen('<div class="kd-sheet-t">' + (claim ? '合言葉を入れてください' : '合言葉を決めてください') + '</div>'
+    + '<div class="kd-sheet-s">' + (claim
+      ? '「' + escH(n) + '」として続けるには、最初に決めた合言葉（数字4桁）が必要です。'
+      : '安全のため、ニックネームに合言葉（数字4桁）を付けるようになりました。スマホを変えたときに、本人と確かめるために使います。') + '</div>'
+    + '<input type="password" class="kd-pin" id="kd-auth-pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="' + (claim ? 'current-password' : 'new-password') + '" aria-label="合言葉（数字4桁）" oninput="this.value=this.value.replace(/[^0-9]/g,\'\').slice(0,4)">'
+    + '<div class="kd-sheet-msg" id="kd-auth-msg"></div>'
+    + '<div class="kd-sheet-btns"><button type="button" class="main" id="kd-auth-go" onclick="kdAuthGo(\'' + mode + '\')">' + (claim ? '続ける' : 'この合言葉にする') + '</button></div>',
+    { locked: true });
+}
+function kdAuthGo(mode) {
+  const n = confirmedNick();
+  const pin = (document.getElementById('kd-auth-pin') || {}).value || '';
+  const msg = document.getElementById('kd-auth-msg');
+  const btn = document.getElementById('kd-auth-go');
+  if (!/^[0-9]{4}$/.test(pin)) { if (msg) msg.textContent = '数字4桁で入れてください'; return; }
+  if (btn) { btn.disabled = true; }
+  const key = kdNewKey();
+  gasPost({ action: mode === 'claim' ? 'claimUser' : 'registerUser', name: n, pin: pin, key: key })
+    .then(function() {
+      kdSetKey(key, n); _authShown = false; kdSheetClose();
+      showToast('✓ 本人確認ができました');
+      myLoad(); loadMyDates(); loadNews();
+      if (daPaneOn()) openAnalysis();
+    })
+    .catch(function(e) {
+      if (btn) btn.disabled = false;
+      if (e && e.code === 'registered') { kdAuthSheet(n, 'claim'); return; }
+      if (msg) msg.textContent = (e && e.fromServer) ? e.message : '通信できませんでした。もう一度お試しください';
+    });
 }
 
 function currentNick() {
@@ -1494,7 +1695,7 @@ function daLoad(name) {
   const req = ++daReq; // 続けて押したとき、古い結果で上書きしない
   el.innerHTML = DA_SKELETON;
   el.setAttribute('aria-busy', 'true');
-  fetch(GAS_URL + '?' + new URLSearchParams({ action: 'analyzeDiary', name: daName, days: String(DA_DAYS), _: Date.now() }).toString())
+  fetch(kdUrl({ action: 'analyzeDiary', name: daName, days: String(DA_DAYS)}))
     .then(function(res) { return res.text(); })
     .then(function(text) {
       if (req !== daReq) return;
@@ -1931,7 +2132,7 @@ function myLoad() {
   const cached = myCacheGet(name);
   myItems = cached || [];
   myRender();
-  fetch(GAS_URL + '?' + new URLSearchParams({ action: 'getMyThemes', name: name }).toString())
+  fetch(kdUrl({ action: 'getMyThemes', name: name}))
   .then(function(r) { return r.json(); })
   .then(function(j) {
     if (j.status !== 'ok' || confirmedNick() !== name) return; // 取得中にニックネームが変わった
@@ -2083,7 +2284,12 @@ function drawHitokoto() {
     hkUpdateBadge();
     return;
   }
-  const shown = all.slice();
+  // 並び：稽古した日（記録日）が新しい順。同じ日なら、あとから届いた順
+  const shown = all.slice().sort(function(a, b) {
+    const da = hkDayKey(a.it), db = hkDayKey(b.it);
+    if (da !== db) return da < db ? 1 : -1;
+    return (+String(b.it.id || '').split('|')[1] || Infinity) - (+String(a.it.id || '').split('|')[1] || Infinity) || a.idx - b.idx;
+  });
   list.innerHTML = shown.map(function(o) {
     const it = o.it, i = o.idx;
     const mine = !!me && it.name === me;
@@ -2103,7 +2309,8 @@ function drawHitokoto() {
       extra = '<div class="hk-picker">' + HK_TYPES.map(function(t) {
         const on = !!me && (rx[t.k] || []).indexOf(me) >= 0;
         return '<button class="hk-chip' + (on ? ' on' : '') + '" onclick="hkReact(' + i + ',\'' + t.k + '\')">' + t.icon + ' ' + t.label + '</button>';
-      }).join('') + '<button class="hk-chip' + (hkCommentFor === i ? ' on' : '') + '" onclick="hkOpenComment(' + i + ')">💬 コメント</button></div>';
+      }).join('') + '<button class="hk-chip' + (hkCommentFor === i ? ' on' : '') + '" onclick="hkOpenComment(' + i + ')">💬 コメント</button>'
+        + '<button class="hk-chip hk-report" onclick="hkReport(' + i + ')">通報</button></div>';
       if (hkCommentFor === i) {
         extra += '<div class="hk-cm-form">'
           + '<input type="text" id="hk-cm-input" maxlength="' + HK_CM_MAX + '" placeholder="コメントを書く" aria-label="' + escH(hkDn(it.name)).replace(/"/g, '&quot;') + 'さんへのコメント" oninput="hkCmCount(this)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();hkSendComment(' + i + ');}">'
@@ -2185,8 +2392,9 @@ function drawMyReactions() {
     const nm = function(n) { const d = escH(hkDn(n)); return bold.indexOf(n) >= 0 ? '<b class="my-new">' + d + '</b>' : d; };
     const lines = HK_TYPES.filter(function(t) { return (rx[t.k] || []).length; }).map(function(t) {
       return '<div class="my-line">' + t.icon + ' ' + rx[t.k].map(nm).join('、') + '<span class="my-lbl">が' + t.label + '</span></div>';
-    }).join('') + hkMyComments.map(function(c) {
-      return '<div class="my-line">💬 ' + nm(c.from) + '「' + escH(c.text) + '」</div>';
+    }).join('') + hkMyComments.map(function(c, k) {
+      return '<div class="my-line">💬 ' + nm(c.from) + '「' + escH(c.text) + '」'
+        + (c.cid ? '<button type="button" class="my-report" onclick="event.stopPropagation();hkReportComment(' + k + ')">通報</button>' : '') + '</div>';
     }).join('');
     nbody.innerHTML = '<div class="my-notice-label">前回の一言</div><div class="my-text">' + escH(mine.text) + '</div><div class="my-rx">' + lines + '</div>';
     nbody.style.display = 'block';
@@ -2237,6 +2445,50 @@ function hkToggleNames(i, k) {
   drawHitokoto();
 }
 
+// ===== 通報 =====
+const KD_REPORT_REASONS = ['悪口・いやがらせ', '不適切な内容', 'その他'];
+let _reportTarget = null;
+function kdReportSheet(title, quote) {
+  kdSheetOpen('<div class="kd-sheet-t">' + title + '</div>'
+    + '<div class="kd-sheet-q">' + escH(quote) + '</div>'
+    + '<div class="kd-sheet-s">運営が内容を確認します。通報したことは、書いた人には知らされません。理由を選んでください。</div>'
+    + '<div class="kd-sheet-msg" id="kd-rep-msg"></div>'
+    + '<div class="kd-sheet-btns">' + KD_REPORT_REASONS.map(function(r, k) { return '<button type="button" onclick="kdReportSend(' + k + ')">' + r + '</button>'; }).join('')
+    + '<button type="button" class="ghost" onclick="kdSheetClose()">やめる</button></div>', { noFocus: true });
+}
+function hkReport(i) {
+  const it = hkItems[i];
+  if (!it || !it.id) return;
+  _reportTarget = { kind: 'hitokoto', targetId: it.id, text: it.text, i: i };
+  kdReportSheet('この一言を通報しますか？', it.text);
+}
+function hkReportComment(k) {
+  const me = hkMe();
+  const mine = hkItems.find(function(x) { return me && x.name === me; });
+  const c = hkMyComments[k];
+  if (!mine || !c || !c.cid) return;
+  _reportTarget = { kind: 'comment', targetId: mine.id, cid: c.cid, text: c.text, k: k };
+  kdReportSheet('このコメントを通報しますか？', c.text);
+}
+function kdReportSend(r) {
+  const t = _reportTarget, me = hkMe();
+  if (!t || !me) return;
+  const btns = document.querySelectorAll('#kd-sheet .kd-sheet-btns button');
+  btns.forEach(function(b) { b.disabled = true; });
+  gasPost({ action: 'report', reporter: me, kind: t.kind, targetId: t.targetId, cid: t.cid || '', text: t.text, reason: KD_REPORT_REASONS[r] })
+    .then(function() {
+      kdSheetClose();
+      // 通報した本人には、すぐに出さない
+      if (t.kind === 'hitokoto') { hkItems = hkItems.filter(function(x) { return x.id !== t.targetId; }); hkOpenPicker = null; drawHitokoto(); }
+      else { hkMyComments = hkMyComments.filter(function(c) { return c.cid !== t.cid; }); drawMyReactions(); }
+      showToast('✓ 通報しました。運営が確認します');
+    })
+    .catch(function(e) {
+      btns.forEach(function(b) { b.disabled = false; });
+      const m = document.getElementById('kd-rep-msg');
+      if (m) m.textContent = '送れませんでした（' + gasErrMsg(e) + '）。もう一度お試しください';
+    });
+}
 function hkTogglePicker(i) {
   hkOpenNames = null;
   hkOpenPicker = (hkOpenPicker === i) ? null : i;
@@ -2289,7 +2541,7 @@ function hkLoadMyComments() {
   const mine = hkItems.find(function(x) { return me && x.name === me; });
   if (!mine || !mine.id) { hkMyComments = []; hkMyCommentsId = ''; drawMyReactions(); return; }
   const reqId = mine.id;
-  fetch(GAS_URL + '?' + new URLSearchParams({ action: 'getMyComments', name: me, id: mine.id }).toString())
+  fetch(kdUrl({ action: 'getMyComments', name: me, id: mine.id}))
   .then(function(r) { return r.json(); })
   .then(function(j) {
     const now = hkItems.find(function(x) { return x.name === hkMe(); });
@@ -2344,8 +2596,13 @@ function hkAfterSubmit(name, text, dateKey) {
   const t = String(text || '').trim();
   if (n && t) {
     const label = dateLabel(dateKey || jstKey(0));
-    hkItems = hkItems.filter(function(x) { return x.name !== n; });
-    hkItems.unshift({ id: '', name: n, text: t, date: label, dk: dateKey || jstKey(0), reactions: {} });
+    const dk = dateKey || jstKey(0);
+    const cur = hkItems.find(function(x) { return x.name === n; });
+    // 稽古した日がより新しい一言が出ていれば、過去の日の分をあとから書いても入れ替えない
+    if (!cur || hkDayKey(cur) <= dk) {
+      hkItems = hkItems.filter(function(x) { return x.name !== n; });
+      hkItems.unshift({ id: '', name: n, text: t, date: label, dk: dk, reactions: {} });
+    }
     hkOpenNames = null; hkOpenPicker = null;
     drawHitokoto();
   }
