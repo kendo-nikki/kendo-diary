@@ -308,6 +308,17 @@ body.kd-noname .diary-submit-btn { display: none; }
 body.kd-noname .diary-submit-need { display: block; }
 .diary-done { align-items: center; gap: 12px; margin-top: 12px; padding: 12px 16px; font-size: var(--t-md); font-weight: 600; }
 .diary-done button { margin-left: auto; padding: 0; border: 0; background: none; color: var(--tint); font-size: var(--t-md); font-weight: 600; }
+/* 日記を出した後：今日のテーマの動画（剣道科学チャンネルへ） */
+.kd-video { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 12px; background: var(--card); border-radius: var(--r-l); box-shadow: var(--card-shadow); color: var(--label); text-decoration: none; }
+.kd-video-thumb { position: relative; flex: 0 0 auto; width: 112px; aspect-ratio: 16 / 9; border-radius: var(--r-m); overflow: hidden; background: var(--fill); }
+.kd-video-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.kd-video-thumb svg { position: absolute; left: 50%; top: 50%; width: 28px; height: 28px; transform: translate(-50%, -50%); }
+.kd-video-play-bg { fill: rgba(0,0,0,.6); } .kd-video-play-tri { fill: #fff; }
+.kd-video-txt { min-width: 0; flex: 1 1 auto; }
+.kd-video-k, .kd-video-t, .kd-video-s { display: block; }
+.kd-video-k { font-size: var(--t-xs); font-weight: 600; color: var(--accent-ink); }
+.kd-video-t { margin-top: 2px; font-size: var(--t-md); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.kd-video-s { margin-top: 2px; font-size: var(--t-xs); color: var(--label2); }
 
 /* ---------- 下のタブ ---------- */
 .diary-seg { position: fixed; left: 0; right: 0; bottom: 0; z-index: 300; display: flex;
@@ -528,6 +539,10 @@ body.kd-noname .diary-submit-need { display: block; }
 /* ---------- フッター・知らせ ---------- */
 .site-footer { margin-top: 32px; padding: 16px 0; text-align: center; font-size: var(--t-xs); color: var(--label3); }
 .site-footer-ver { margin-top: 4px; opacity: .7; }
+.site-footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin-bottom: 8px; }
+.site-footer-links a { color: var(--label2); text-decoration: none; padding: 4px 0; }
+.diary-name-agree { margin-top: 8px; font-size: var(--t-xs); color: var(--label3); line-height: 1.6; }
+.diary-name-agree a { color: var(--label2); }
 /* 下から出る画面 */
 .kd-sheet { position: fixed; inset: 0; z-index: 900; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,.36); animation: kdFade .2s both; }
 .kd-sheet-card { width: 100%; max-width: 560px; padding: 24px 20px calc(20px + env(safe-area-inset-bottom)); border-radius: var(--r-l) var(--r-l) 0 0; background: var(--card); color: var(--label); animation: kdIn .25s var(--ease) both; }
@@ -648,6 +663,7 @@ body.kd-sheet-open { overflow: hidden; }
         <!-- 決定はニックネームと道場コードの下（コードを入れる前に押してしまわないように） -->
         <button type="button" class="diary-name-ok wide" onclick="confirmDiaryName()">決定</button>
         <div class="diary-name-hint">日記はこのニックネームで記録されます。<b>決めたニックネームと道場は、あとから変えられません。</b></div>
+        <div class="diary-name-agree">「決定」を押すと、<a href="terms.html" target="_blank" rel="noopener">利用規約</a>と<a href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>に同意したものとします。</div>
       </div>
 
       <!-- 切り替え：日記をつける／分析／仲間の一言（開いたときは常に「日記をつける」） -->
@@ -776,6 +792,8 @@ body.kd-sheet-open { overflow: hidden; }
         <span>✓ 日記をだしました</span>
         <button type="button" onclick="hkSwitchPane('peers')">仲間の一言を見る</button>
       </div>
+      <!-- 日記を出した後：今日のテーマの動画（剣道科学チャンネル） -->
+      <a class="kd-video" id="diary-video" style="display:none;" target="_blank" rel="noopener"></a>
 
       </div>
 
@@ -803,8 +821,13 @@ body.kd-sheet-open { overflow: hidden; }
 
   <!-- フッター：著作権表示 -->
   <footer class="site-footer">
+    <div class="site-footer-links">
+      <a href="https://www.youtube.com/channel/UCSeWKgzodKJV31gLE8S08cQ" target="_blank" rel="noopener">剣道科学チャンネル（YouTube）</a>
+      <a href="terms.html" target="_blank" rel="noopener">利用規約</a>
+      <a href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>
+    </div>
     <div class="site-footer-copy">© 2026 MARC PROGRAM　無断転載・複製を禁じます</div>
-    <div class="site-footer-ver">ver. 2027-v31</div>
+    <div class="site-footer-ver">ver. 2027-v33</div>
   </footer>
 
 </div>
@@ -845,7 +868,10 @@ function kdUrl(params) {
 (function() {
   const _fetch = window.fetch.bind(window);
   window.fetch = function(u, o) {
-    const p = _fetch(u, o);
+    // GAS が混んで返事が来ないときも、20秒で「読み込めませんでした」に切り替える（ずっとクルクルさせない）
+    const p = String(u).indexOf(GAS_URL) === 0
+      ? Promise.race([_fetch(u, o), new Promise(function(_, rej) { setTimeout(function() { rej(new Error('時間切れ')); }, 20000); })])
+      : _fetch(u, o);
     if (String(u).indexOf(GAS_URL) === 0) {
       p.then(function(r) { return r.clone().json(); }).then(function(j) { if (j && j.code === 'auth') kdNeedAuth(); }).catch(function() {});
     }
@@ -1173,6 +1199,49 @@ function renderDojo() {
     }
   }
 }
+// ===== テーマの動画（剣道科学チャンネルへの入口） =====
+// 動画の一覧は GAS のシート「動画」から getNews で届く。端末にも控えを持ち、次に開いたときすぐ使う
+const KD_CH_URL = 'https://www.youtube.com/channel/UCSeWKgzodKJV31gLE8S08cQ';
+const LS_VIDEOS = 'kd_videos';
+// 動画がまだ無いテーマは、チャンネル内をこの言葉で検索する
+const KD_THEME_WORD = {
+  '構え・姿勢・目付': '構え', '足さばき・体さばき': '足さばき', '竹刀操作・打突': '打突',
+  '攻め・間合い': '攻め', '技・打突の機会': '機会', '気勢・呼吸・集中': '呼吸'
+};
+let kdVideos = (function() { try { const v = JSON.parse(LS.get(LS_VIDEOS) || '[]'); return Array.isArray(v) ? v : []; } catch(e) { return []; } })();
+function kdSetVideos(list) {
+  kdVideos = list.filter(function(v) { return v && typeof v.theme === 'string' && /^[A-Za-z0-9_-]{11}$/.test(String(v.id || '')); });
+  LS.set(LS_VIDEOS, JSON.stringify(kdVideos));
+}
+// q4：今日の Q4（基本テーマはそのままの名前、マイテーマは「マイ:〇〇」）
+function kdShowVideo(q4) {
+  const el = document.getElementById('diary-video');
+  if (!el) return;
+  const base = (q4 || []).filter(function(t) { return KD_THEME_WORD[t]; });
+  let theme = '', v = null;
+  // 選んだ基本テーマのうち、動画があるものを優先。同じテーマに複数あれば日ごとに順に出す
+  for (let i = 0; i < base.length && !v; i++) {
+    const hits = kdVideos.filter(function(x) { return x.theme === base[i]; });
+    if (hits.length) { theme = base[i]; v = hits[Math.floor(Date.now() / 86400000) % hits.length]; }
+  }
+  const play = '<svg viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="14" class="kd-video-play-bg"/><path d="M11 8.5v11l9-5.5z" class="kd-video-play-tri"/></svg>';
+  if (v) {
+    el.href = 'https://www.youtube.com/watch?v=' + v.id;
+    el.innerHTML = '<span class="kd-video-thumb"><img src="https://i.ytimg.com/vi/' + v.id + '/mqdefault.jpg" alt="" loading="lazy" onerror="this.remove()">' + play + '</span>'
+      + '<span class="kd-video-txt"><span class="kd-video-k">今日のテーマ「' + escH(theme) + '」を深める</span>'
+      + '<span class="kd-video-t">' + escH(v.title || '剣道科学の動画') + '</span>'
+      + '<span class="kd-video-s">YouTube で見る</span></span>';
+  } else {
+    theme = base[0] || '';
+    el.href = theme ? KD_CH_URL + '/search?query=' + encodeURIComponent(KD_THEME_WORD[theme]) : KD_CH_URL;
+    el.innerHTML = '<span class="kd-video-thumb">' + play + '</span>'
+      + '<span class="kd-video-txt"><span class="kd-video-k">' + (theme ? '今日のテーマ「' + escH(theme) + '」を深める' : '稽古のヒントを探す') + '</span>'
+      + '<span class="kd-video-t">剣道科学チャンネルの動画</span>'
+      + '<span class="kd-video-s">YouTube で見る</span></span>';
+  }
+  el.style.display = 'flex';
+}
+
 function loadNews() {
   const me = confirmedNick();
   const reqName = me;
@@ -1191,7 +1260,11 @@ function loadNews() {
       // まだ道場に入っていない（前の版から使っている人など）：空いている道場に自動で入って読み直す
       if (!data.dojo && !_dojoAutoTried) {
         _dojoAutoTried = true;
-        gasPost({ action: 'joinDojo', name: me }).then(function() { loadNews(); }).catch(function() {});
+        // 道場に入る通信に失敗したら、読み込み中のまま止めずに「読み込めませんでした・もう一度」を出す
+        gasPost({ action: 'joinDojo', name: me }).then(function() { loadNews(); }).catch(function() {
+          if (confirmedNick() !== reqName) return;
+          _dojoAutoTried = false; hkState = 'error'; renderDojo(); drawHitokoto();
+        });
         return;
       }
       myDojo = data.dojo || null;
@@ -1202,6 +1275,7 @@ function loadNews() {
       renderMyAvatar();
       renderDojo();
       hkDisplayNames = data.displayNames || {};
+      if (Array.isArray(data.videos)) kdSetVideos(data.videos);
       renderHitokoto(data.hitokoto || []);
       renderWeekly(data.weekly || null);
     }
@@ -1282,8 +1356,12 @@ function normNick(v) {
 }
 // 入力中は端末に保存しない（「決定」で確定したときだけ保存する。打ちかけの名前でリアクション等が送られないように）
 function onDiaryNameInput(el) {
+  // ニックネームを打ち直したときだけ案内を閉じる。
+  // スマホは、変換の確定やボタンを押した瞬間にも入力の合図が出るので、中身が同じなら閉じない
+  // （閉じると「本人です」のボタンが消え、押したつもりが下の「決定」に当たってくり返しになる）
   const t = document.getElementById('diary-name-taken');
-  if (t) t.style.display = 'none';
+  if (t && t.dataset.name && normNick(el.value) === t.dataset.name) return;
+  if (t) { t.style.display = 'none'; t.dataset.name = ''; t.dataset.mode = ''; }
 }
 
 // ===== 記入者表示 =====
@@ -1339,6 +1417,9 @@ function confirmDiaryName() {
   const pin = pinEl ? pinEl.value : '';
   if (!/^[0-9]{4}$/.test(pin)) { showToast('⚠ 合言葉を数字4桁で決めてください'); if (pinEl) pinEl.focus(); return Promise.resolve(false); }
   if (_nameChecking) return Promise.resolve(false);
+  // 「すでに使われています」を見たうえで、同じ名前のまま「決定」をもう一度押した → 案内のボタンと同じく本人として続ける
+  const tk = document.getElementById('diary-name-taken');
+  if (tk && tk.style.display === 'block' && tk.dataset.name === n && tk.dataset.mode) return kdNameAs(tk.dataset.mode);
   _nameChecking = true;
   const ok = document.querySelector('.diary-name-ok');
   if (ok) { ok.disabled = true; ok.textContent = '確認中'; }
@@ -1357,6 +1438,7 @@ function confirmDiaryName() {
             + (j.registered
               ? '<button type="button" onclick="kdNameAs(\'claim\')">本人です（上の合言葉で続ける）</button>'
               : '<button type="button" onclick="kdNameAs(\'register\')">前にこの名前で記録した本人です（上の合言葉を決めて続ける）</button>');
+          t.dataset.name = n; t.dataset.mode = j.registered ? 'claim' : 'register';
           t.style.display = 'block';
         }
         el.focus();
@@ -1401,6 +1483,7 @@ function kdNameAs(mode, already) {
       if (mode === 'claim' && e && e.fromServer && t) {
         // 合言葉ちがい・ロック中：理由を出し、合言葉を直してそのまま押し直せるようにする
         t.innerHTML = escH(e.message) + '<button type="button" onclick="kdNameAs(\'claim\')">本人です（上の合言葉で続ける）</button>';
+        t.dataset.name = n; t.dataset.mode = 'claim';
         t.style.display = 'block';
         const p = document.getElementById('diary-pin'); if (p) { p.value = ''; p.focus(); }
       } else {
@@ -1750,6 +1833,7 @@ function submitDiary() {
   gasPost(data)
   .then(function(){
     hkAfterSubmit(name, free, data['記録日']);
+    kdShowVideo(q4);
     resetDiaryForm();
     if (myDates.indexOf(data['記録日']) < 0) {
       myDates.push(data['記録日']);
