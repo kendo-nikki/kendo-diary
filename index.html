@@ -309,6 +309,19 @@ body.kd-noname .diary-submit-need { display: block; }
 .diary-done { align-items: center; gap: 12px; margin-top: 12px; padding: 12px 16px; font-size: var(--t-md); font-weight: 600; }
 .diary-done button { margin-left: auto; padding: 0; border: 0; background: none; color: var(--tint); font-size: var(--t-md); font-weight: 600; }
 /* 日記を出した後：今日のテーマの動画（剣道科学チャンネルへ） */
+.kd-notice-bar { display: flex; justify-content: flex-end; margin: 8px 0 -4px; }
+.kd-notice-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 4px; border: 0; background: none; color: var(--label2); font-size: var(--t-sm); font-weight: 600; }
+.kd-notice-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.kd-notice-n { margin-left: 2px; padding: 1px 8px; border-radius: 999px; background: var(--accent); color: #fff; font-size: var(--t-xs); font-weight: 700; }
+.kd-nl { max-height: 60vh; margin-top: 12px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.kd-nl-i { padding: 12px 0; border-top: .5px solid var(--sep); }
+.kd-nl-i:first-child { border-top: 0; }
+.kd-nl-d { font-size: var(--t-xs); color: var(--label2); }
+.kd-nl-new { margin-left: 6px; color: var(--accent-ink); font-weight: 700; }
+.kd-nl-t { margin-top: 2px; font-size: var(--t-md); font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.kd-nl-b { margin-top: 4px; font-size: var(--t-sm); color: var(--label2); line-height: 1.7; overflow-wrap: anywhere; white-space: pre-line; }
+.kd-nl-a { display: inline-block; margin-top: 6px; color: var(--tint); font-size: var(--t-sm); font-weight: 600; text-decoration: none; }
+.kd-nl-empty { padding: 16px 0; font-size: var(--t-sm); color: var(--label2); }
 .kd-video { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 12px; background: var(--card); border-radius: var(--r-l); box-shadow: var(--card-shadow); color: var(--label); text-decoration: none; }
 .kd-video-thumb { position: relative; flex: 0 0 auto; width: 112px; aspect-ratio: 16 / 9; border-radius: var(--r-m); overflow: hidden; background: var(--fill); }
 .kd-video-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -675,6 +688,8 @@ body.kd-sheet-open { overflow: hidden; }
 
       <!-- ===== 日記をつける ===== -->
       <div class="diary-pane on" id="pane-write" role="tabpanel">
+      <!-- お知らせ：ふだんは小さく「お知らせ」、未読があれば「未読N件」。押すと一覧 -->
+      <div class="kd-notice-bar"><button type="button" class="kd-notice-btn" id="kd-notice-btn" onclick="kdOpenNotices()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>お知らせ<span class="kd-notice-n" id="kd-notice-n" style="display:none;"></span></button></div>
       <div class="diary-hero">
       <div class="diary-head">
         <svg class="diary-mark" viewBox="0 0 64 64" fill="none" aria-hidden="true"><defs><linearGradient id="kd-logo-g2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3A3A3C"/><stop offset="1" stop-color="#0B0B0C"/></linearGradient></defs><rect width="64" height="64" rx="14.5" fill="url(#kd-logo-g2)"/><path d="M17 33 L11 53 Q16 55.5 23 55 L25 40 Z" fill="#fff"/><path d="M47 33 L53 53 Q48 55.5 41 55 L39 40 Z" fill="#fff"/><ellipse cx="32" cy="30" rx="16.5" ry="19" fill="#fff"/><ellipse cx="32" cy="31" rx="10.5" ry="13.5" fill="#1C1C1E"/><path d="M32 17.5 V44.5" stroke="#fff" stroke-width="2.4"/><path d="M22.5 25 Q32 27 41.5 25 M21.6 31 Q32 33 42.4 31 M22.6 37 Q32 39 41.4 37" fill="none" stroke="#fff" stroke-width="2"/></svg>
@@ -827,7 +842,7 @@ body.kd-sheet-open { overflow: hidden; }
       <a href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>
     </div>
     <div class="site-footer-copy">© 2026 MARC PROGRAM　無断転載・複製を禁じます</div>
-    <div class="site-footer-ver">ver. 2027-v33</div>
+    <div class="site-footer-ver">ver. 2027-v35</div>
   </footer>
 
 </div>
@@ -1242,6 +1257,53 @@ function kdShowVideo(q4) {
   el.style.display = 'flex';
 }
 
+// ===== お知らせ（運営から。メールではなく剣道日記の中に出す） =====
+const LS_NOTICES = 'kd_notices';           // 前に届いたお知らせ（開いてすぐ出すための控え）
+const LS_NOTICE_READ = 'kd_notice_read';   // 閉じたお知らせのID
+function kdLsJson(k) { try { const v = JSON.parse(LS.get(k) || '[]'); return Array.isArray(v) ? v : []; } catch(e) { return []; } }
+let kdNotices = kdLsJson(LS_NOTICES);
+function kdSetNotices(list) {
+  kdNotices = list.filter(function(n) { return n && typeof n.id === 'string' && typeof n.title === 'string'; });
+  LS.set(LS_NOTICES, JSON.stringify(kdNotices));
+  // 今は出ていないお知らせの「閉じた」記録は消す（端末に溜めない）
+  const ids = kdNotices.map(function(n) { return n.id; });
+  LS.set(LS_NOTICE_READ, JSON.stringify(kdLsJson(LS_NOTICE_READ).filter(function(id) { return ids.indexOf(id) >= 0; })));
+  kdDrawNotices();
+}
+function kdUnreadNotices() {
+  const read = kdLsJson(LS_NOTICE_READ);
+  return kdNotices.filter(function(n) { return read.indexOf(n.id) < 0; });
+}
+// ボタンの「未読N件」を更新する
+function kdDrawNotices() {
+  const el = document.getElementById('kd-notice-n');
+  if (!el) return;
+  const n = kdUnreadNotices().length;
+  el.textContent = '未読' + n + '件';
+  el.style.display = n ? 'inline-block' : 'none';
+  const btn = document.getElementById('kd-notice-btn');
+  if (btn) btn.setAttribute('aria-label', n ? 'お知らせ 未読' + n + '件' : 'お知らせ');
+}
+// 一覧を開く（開いた時点で、出ているお知らせはすべて既読）
+function kdOpenNotices() {
+  const unread = kdUnreadNotices().map(function(n) { return n.id; });
+  const list = kdNotices.map(function(n) {
+    const d = String(n.date || '').split('-');
+    const link = /^https:\/\//.test(n.link || '') ? n.link : '';
+    return '<div class="kd-nl-i">'
+      + '<div class="kd-nl-d">' + (d.length === 3 ? d[0] + '年' + (+d[1]) + '月' + (+d[2]) + '日' : '') + (unread.indexOf(n.id) >= 0 ? '<span class="kd-nl-new">未読</span>' : '') + '</div>'
+      + '<div class="kd-nl-t">' + escH(n.title) + '</div>'
+      + (n.body ? '<div class="kd-nl-b">' + escH(n.body) + '</div>' : '')
+      + (link ? '<a class="kd-nl-a" href="' + escH(link).replace(/"/g, '&quot;') + '" target="_blank" rel="noopener">くわしく見る ›</a>' : '')
+      + '</div>';
+  }).join('');
+  kdSheetOpen('<div class="kd-sheet-t">お知らせ</div>'
+    + '<div class="kd-nl">' + (list || '<div class="kd-nl-empty">お知らせはありません</div>') + '</div>'
+    + '<div class="kd-sheet-btns"><button type="button" onclick="kdSheetClose()">閉じる</button></div>', { noFocus: true });
+  LS.set(LS_NOTICE_READ, JSON.stringify(kdNotices.map(function(n) { return n.id; })));
+  kdDrawNotices();
+}
+
 function loadNews() {
   const me = confirmedNick();
   const reqName = me;
@@ -1276,6 +1338,7 @@ function loadNews() {
       renderDojo();
       hkDisplayNames = data.displayNames || {};
       if (Array.isArray(data.videos)) kdSetVideos(data.videos);
+      if (Array.isArray(data.notices)) kdSetNotices(data.notices);
       renderHitokoto(data.hitokoto || []);
       renderWeekly(data.weekly || null);
     }
@@ -2898,6 +2961,7 @@ function hkSwitchPane(p) {
 // 記録画面の部品に順番を付ける（少しずつ遅れて入ってくる）
 document.querySelectorAll('#pane-write > .diary-hero, #pane-write > .my-notice-wrap, #pane-write > .diary-q').forEach(function(el, i) { el.style.setProperty('--i', i); });
 // ホーム画面のアプリ：https で開いたときだけ sw.js を登録（無くても何も起きない）
+kdDrawNotices(); // 前に届いたお知らせを、通信を待たずに出す
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   window.addEventListener('load', function() { navigator.serviceWorker.register('sw.js').catch(function() {}); });
 }
