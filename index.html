@@ -842,7 +842,7 @@ body.kd-sheet-open { overflow: hidden; }
       <a href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>
     </div>
     <div class="site-footer-copy">© 2026 MARC PROGRAM　無断転載・複製を禁じます</div>
-    <div class="site-footer-ver">ver. 2027-v35</div>
+    <div class="site-footer-ver">ver. 2027-v36</div>
   </footer>
 
 </div>
@@ -1229,25 +1229,51 @@ function kdSetVideos(list) {
   LS.set(LS_VIDEOS, JSON.stringify(kdVideos));
 }
 // q4：今日の Q4（基本テーマはそのままの名前、マイテーマは「マイ:〇〇」）
+// マイテーマの言葉から、近い基本テーマを探す（GAS の VIDEO_THEME_WORDS と同じ言葉）
+const KD_THEME_KEYS = {
+  '構え・姿勢・目付': ['構え', '姿勢', '目付', '目線', '中段', '上段', '体幹', '背筋', '顎', 'あご'],
+  '足さばき・体さばき': ['足さばき', '足の', '左足', '右足', 'すり足', '送り足', '足腰', '踏み込', 'ひかがみ', '膝', 'ひざ', '重心', '体さばき', '体捌き', '腰', '蹴'],
+  '竹刀操作・打突': ['打突', '手の内', '素振り', '振り', 'キレ', '冴え', '残心', '竹刀', '握り', '軽い', '重い打'],
+  '攻め・間合い': ['攻め', '間合', '溜め', '中心', '距離', '一足一刀', '圧', '崩し', '崩す'],
+  '技・打突の機会': ['出ばな', '出端', '出頭', '応じ', '返し', 'すり上げ', '抜き', '機会', '拍子', 'タイミング', '速い相手', '起こり', '先の'],
+  '気勢・呼吸・集中': ['呼吸', '気勢', '気合', '集中', 'フロー', '覚醒', '平常心', '不動心', '禅', 'メンタル', '緊張', '心の']
+};
+function kdPickDay(list) { return list[Math.floor(Date.now() / 86400000) % list.length]; } // 同じ日は同じ動画、日ごとに順に替わる
+// q4：今日の Q4（基本テーマはそのままの名前、マイテーマは「マイ:〇〇」）
+// 出す順：①選んだ基本テーマの動画 ②マイテーマの言葉に近い動画 ③今日のおすすめ（全体から） ④動画の一覧が無いときはチャンネルへ
 function kdShowVideo(q4) {
   const el = document.getElementById('diary-video');
   if (!el) return;
-  const base = (q4 || []).filter(function(t) { return KD_THEME_WORD[t]; });
-  let theme = '', v = null;
-  // 選んだ基本テーマのうち、動画があるものを優先。同じテーマに複数あれば日ごとに順に出す
+  const picked = q4 || [];
+  const base = picked.filter(function(t) { return KD_THEME_WORD[t]; });
+  const mine = picked.filter(function(t) { return t.indexOf('マイ:') === 0; }).map(function(t) { return t.slice(3); });
+  let label = '', v = null;
+  const ofTheme = function(th) { return kdVideos.filter(function(x) { return x.theme === th; }); };
   for (let i = 0; i < base.length && !v; i++) {
-    const hits = kdVideos.filter(function(x) { return x.theme === base[i]; });
-    if (hits.length) { theme = base[i]; v = hits[Math.floor(Date.now() / 86400000) % hits.length]; }
+    const hits = ofTheme(base[i]);
+    if (hits.length) { v = kdPickDay(hits); label = '今日のテーマ「' + base[i] + '」を深める'; }
+  }
+  for (let i = 0; i < mine.length && !v; i++) {
+    // マイテーマの言葉が、動画のタイトルにそのまま入っていれば最優先。次に、近い基本テーマの動画
+    const words = [];
+    Object.keys(KD_THEME_KEYS).forEach(function(th) { KD_THEME_KEYS[th].forEach(function(w) { if (mine[i].indexOf(w) >= 0) words.push([th, w]); }); });
+    let hits = kdVideos.filter(function(x) { return words.some(function(w) { return (x.title || '').indexOf(w[1]) >= 0; }); });
+    if (!hits.length) words.forEach(function(w) { if (!hits.length) hits = ofTheme(w[0]); });
+    if (hits.length) { v = kdPickDay(hits); label = 'マイテーマ「' + mine[i] + '」に近い動画'; }
+  }
+  if (!v && kdVideos.length) {
+    const seen = {}, uniq = kdVideos.filter(function(x) { if (seen[x.id]) return false; seen[x.id] = true; return true; });
+    v = kdPickDay(uniq); label = '今日のおすすめ';
   }
   const play = '<svg viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="14" class="kd-video-play-bg"/><path d="M11 8.5v11l9-5.5z" class="kd-video-play-tri"/></svg>';
   if (v) {
     el.href = 'https://www.youtube.com/watch?v=' + v.id;
     el.innerHTML = '<span class="kd-video-thumb"><img src="https://i.ytimg.com/vi/' + v.id + '/mqdefault.jpg" alt="" loading="lazy" onerror="this.remove()">' + play + '</span>'
-      + '<span class="kd-video-txt"><span class="kd-video-k">今日のテーマ「' + escH(theme) + '」を深める</span>'
+      + '<span class="kd-video-txt"><span class="kd-video-k">' + escH(label) + '</span>'
       + '<span class="kd-video-t">' + escH(v.title || '剣道科学の動画') + '</span>'
       + '<span class="kd-video-s">YouTube で見る</span></span>';
   } else {
-    theme = base[0] || '';
+    const theme = base[0] || '';
     el.href = theme ? KD_CH_URL + '/search?query=' + encodeURIComponent(KD_THEME_WORD[theme]) : KD_CH_URL;
     el.innerHTML = '<span class="kd-video-thumb">' + play + '</span>'
       + '<span class="kd-video-txt"><span class="kd-video-k">' + (theme ? '今日のテーマ「' + escH(theme) + '」を深める' : '稽古のヒントを探す') + '</span>'
