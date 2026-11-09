@@ -1,0 +1,17 @@
+{
+  "name": "剣道日記",
+  "short_name": "剣道日記",
+  "description": "毎日の稽古を5つの質問で記録し、道場の仲間と一言を送り合える剣道日記",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EEF6F7",
+  "theme_color": "#EEF6F7",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
