@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#EEF6F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<title>使い方｜剣道日記</title>
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+/* 剣道日記の本体と同じ色・文字（浅葱の帯・墨・紅は知らせだけ） */
+:root {
+  --bg: #EEF6F7; --card: #FFFFFF; --raised: #F1F7F8; --sep: rgba(6,50,59,.12);
+  --label: #141416; --label2: #5E6B6E; --label3: #9FAAAD;
+  --ink: #06323B; --ink-2: #0E4A55; --brand-ink: #086F7A; --kurenai: #C8102E;
+  --card-shadow: 0 1px 2px rgba(6,50,59,.05), 0 6px 18px rgba(6,50,59,.07);
+  --hero: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='10'%3E%3Cpath d='M0 10L10 0l10 10z' fill='%23EEF6F7'/%3E%3C/svg%3E") left bottom / 20px 10px repeat-x,
+          linear-gradient(170deg, #6FD5DD 0%, #3CC4CF 100%);
+  --btn: linear-gradient(160deg, #3A3A3C, #111113); --on-btn: #FFFFFF;
+  --chip: #FFFFFF; --chip-line: rgba(6,50,59,.14);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000; --card: #1C1C1E; --raised: #2C2C2E; --sep: rgba(84,84,88,.6);
+    --label: #F2F2F7; --label2: #A1A1A8; --label3: #6B6B72;
+    --brand-ink: #7FDBE2; --kurenai: #FF5A6E; --card-shadow: none;
+    --hero: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='10'%3E%3Cpath d='M0 10L10 0l10 10z' fill='%23000'/%3E%3C/svg%3E") left bottom / 20px 10px repeat-x,
+            linear-gradient(170deg, #6FD5DD 0%, #3CC4CF 100%);
+    --btn: linear-gradient(160deg, #FFFFFF, #D1D1D6); --on-btn: #111113;
+    --chip: #2C2C2E; --chip-line: rgba(255,255,255,.12);
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; background: var(--bg); scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--label); font-size: 15px; line-height: 1.75;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", Meiryo, sans-serif; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--brand-ink); outline-offset: 2px; border-radius: 6px; }
+.wrap { max-width: 640px; margin: 0 auto; padding: 0 16px calc(48px + env(safe-area-inset-bottom)); }
+
+/* 上の帯：アプリと同じ浅葱＋段だら（このページで目立たせるのはここだけ） */
+.top { background: var(--hero); color: var(--ink); padding: calc(12px + env(safe-area-inset-top)) 0 34px; }
+.top .wrap { padding-bottom: 0; }
+.bar { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; text-decoration: none; }
+.brand img { width: 32px; height: 32px; border-radius: 8px; }
+.back { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; font-size: 14px; font-weight: 600; color: var(--ink-2); text-decoration: none; }
+.top h1 { margin: 20px 0 6px; font-size: 28px; line-height: 1.35; letter-spacing: .02em; }
+.top p { margin: 0; max-width: 30em; font-size: 15px; color: var(--ink-2); }
+
+/* やりたいことから選ぶ */
+.tasks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+.task { display: flex; flex-direction: column; gap: 6px; min-height: 92px; padding: 14px; border-radius: 16px; background: var(--card); box-shadow: var(--card-shadow); text-decoration: none; }
+.task svg { width: 24px; height: 24px; fill: none; stroke: var(--brand-ink); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.task b { font-size: 15px; line-height: 1.4; }
+.task span { font-size: 12px; line-height: 1.5; color: var(--label2); }
+
+/* 本文 */
+section { margin-top: 40px; scroll-margin-top: 12px; }
+section > h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 20px; line-height: 1.4; }
+section > h2 svg { flex: 0 0 auto; width: 26px; height: 26px; fill: none; stroke: var(--brand-ink); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.panel { padding: 18px 16px; border-radius: 16px; background: var(--card); box-shadow: var(--card-shadow); }
+.panel + .panel { margin-top: 8px; }
+.panel h3 { margin: 0 0 6px; font-size: 16px; line-height: 1.5; }
+.panel p { margin: 0; }
+.panel p + p { margin-top: 8px; }
+.muted { color: var(--label2); font-size: 14px; }
+
+/* 手順（順番がある所だけ番号） */
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+.steps li { position: relative; padding: 0 0 16px 40px; counter-increment: s; }
+.steps li:last-child { padding-bottom: 0; }
+.steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--btn); color: var(--on-btn); font-size: 13px; font-weight: 700; line-height: 26px; text-align: center; }
+.steps li::after { content: ""; position: absolute; left: 12.5px; top: 30px; bottom: 4px; width: 1px; background: var(--sep); }
+.steps li:last-child::after { display: none; }
+.steps b { display: block; font-size: 15px; }
+.steps span { display: block; font-size: 14px; color: var(--label2); }
+
+/* 画面の部品の見本（実際のボタンと同じ見た目） */
+.ui { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding: 14px; border-radius: 12px; background: var(--raised); }
+.ui-cap { width: 100%; margin-top: -2px; font-size: 12px; color: var(--label2); }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 1px solid var(--chip-line); border-radius: 999px; background: var(--chip); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.chip.pill { background: rgba(255,255,255,.6); border-color: transparent; color: var(--ink); font-size: 15px; }
+.chip.go { height: 40px; padding: 0 18px; border: 0; background: var(--btn); color: var(--on-btn); font-size: 14px; letter-spacing: .06em; }
+.chip.warn { color: var(--label2); }
+.code { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border-radius: 12px; background: var(--card); font-size: 13px; color: var(--label2); }
+.code b { font-size: 16px; letter-spacing: .1em; color: var(--label); }
+.code i { margin-left: auto; font-style: normal; padding: 4px 12px; border-radius: 999px; background: var(--raised); font-size: 13px; font-weight: 600; color: var(--label); }
+
+/* 一覧（見出しと説明の組） */
+.rows { margin: 0; }
+.rows div { display: grid; grid-template-columns: 7.5em 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--sep); }
+.rows div:first-child { border-top: 0; padding-top: 0; }
+.rows div:last-child { padding-bottom: 0; }
+.rows dt { font-weight: 700; font-size: 14px; }
+.rows dd { margin: 0; font-size: 14px; }
+@media (max-width: 360px) { .rows div { grid-template-columns: 1fr; gap: 2px; } }
+
+/* 大事なことの印（紅は知らせだけ） */
+.key { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--raised); font-size: 14px; }
+.key b { color: var(--kurenai); }
+
+/* 困ったとき：開いて読む */
+details { border-radius: 16px; background: var(--card); box-shadow: var(--card-shadow); }
+details + details { margin-top: 8px; }
+.qa-g { margin: 20px 0 8px; font-size: 14px; color: var(--label2); }
+.qa-g:first-of-type { margin-top: 0; }
+summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 12px 16px; font-weight: 700; cursor: pointer; list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: ""; flex: 0 0 auto; width: 9px; height: 9px; border-right: 2px solid var(--label3); border-bottom: 2px solid var(--label3); transform: rotate(45deg) translate(-2px, -2px); transition: transform .2s; }
+details[open] summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+@media (prefers-reduced-motion: reduce) { summary::after { transition: none; } }
+details > div { padding: 0 16px 16px; font-size: 14px; color: var(--label2); }
+
+.rules { list-style: none; margin: 0; padding: 0; }
+.creed { margin: 0 0 14px; padding: 0 0 14px; border-bottom: 1px solid var(--sep); }
+.creed b { display: block; margin-bottom: 4px; font-size: 17px; }
+.rules li { position: relative; padding: 10px 0 10px 28px; border-top: 1px solid var(--sep); }
+.rules li:first-child { border-top: 0; padding-top: 0; }
+.rules li:last-child { padding-bottom: 0; }
+.rules li::before { content: ""; position: absolute; left: 4px; top: 17px; width: 12px; height: 2px; background: var(--kurenai); transform: rotate(45deg); }
+.rules li::after { content: ""; position: absolute; left: 4px; top: 17px; width: 12px; height: 2px; background: var(--kurenai); transform: rotate(-45deg); }
+.rules li:first-child::before, .rules li:first-child::after { top: 7px; }
+
+.contact { margin-top: 40px; padding: 18px 16px; border-radius: 16px; background: var(--raised); font-size: 14px; color: var(--label2); }
+.contact b { color: var(--label); }
+.links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin-top: 24px; font-size: 13px; }
+.links a { color: var(--label2); text-decoration: none; padding: 4px 0; }
+.foot { margin-top: 8px; text-align: center; font-size: 12px; color: var(--label3); }
+/* はじめるボタン（アプリの墨） */
+.start-go { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 24px; border-radius: 999px;
+  background: linear-gradient(160deg, #3A3A3C, #111113); color: #fff; font-size: 16px; font-weight: 700; letter-spacing: .04em; white-space: nowrap; text-decoration: none; box-shadow: 0 6px 16px rgba(6,50,59,.2); }
+.start-go svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.top .start-go { margin-top: 18px; }
+.start-end { margin-top: 40px; padding: 22px 16px; border-radius: 16px; background: var(--card); box-shadow: var(--card-shadow); }
+.start-end p { margin: 0 0 14px; font-size: 14px; color: var(--label2); }
+.start-end .start-go { width: 100%; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="bar">
+      <a class="brand" href="./"><img src="icon-192.png" alt="">剣道日記</a>
+      <a class="back" href="./">剣道日記をひらく</a>
+    </div>
+    <h1>使い方</h1>
+    <p>稽古のあと1分でつけて、振り返り、仲間と励まし合う。そのための使い方をまとめました。</p>
+    <a class="start-go" href="./">無料で日記をはじめる</a>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <nav class="tasks" aria-label="やりたいことから選ぶ">
+    <a class="task" href="#start"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.5 4.2-7 8-7s7 2.5 8 7"/></svg><b>はじめる</b><span>ニックネームと引き継ぎ番号</span></a>
+    <a class="task" href="#write"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3z"/><path d="M14 7l3 3"/></svg><b>日記をつける</b><span>朝4時の区切り・書き忘れ</span></a>
+    <a class="task" href="#analysis"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4"/><path d="M4 20h16"/><path d="M8 16v-4"/><path d="M12 16V8"/><path d="M16 16v-6"/></svg><b>分析を見る</b><span>調子の波と今のテーマ</span></a>
+    <a class="task" href="#peers"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.2 2.9-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="17" cy="9" r="2.4"/><path d="M15.8 14.2c2.3.2 4 1.7 4.7 4.8"/></svg><b>仲間と道場</b><span>いいね・コメント・移る</span></a>
+    <a class="task" href="#trouble"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.6"/><path d="M12 17h.01"/></svg><b>よくある質問</b><span>引き継ぎ番号・退会・道場 など</span></a>
+    <a class="task" href="#rules"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg><b>守ってほしいこと</b><span>みんなが気持ちよく使うために</span></a>
+  </nav>
+
+  <section id="start" aria-labelledby="h-start">
+    <h2 id="h-start"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.5 4.2-7 8-7s7 2.5 8 7"/></svg>はじめる</h2>
+    <div class="panel">
+      <ol class="steps">
+        <li><b>ニックネームを決める</b><span>20字まで。日記と仲間の一言に出る名前です。あとから変えられないので、本名ではない名前にしてください。</span></li>
+        <li><b>引き継ぎ番号（好きな4桁の数字）を決める</b><span>スマホを替えたときと、退会するときに使います。銀行やスマホの暗証番号は使わないでください。忘れると、運営でも戻せません。あとから、右上のアイコンから変えられます。</span></li>
+        <li><b>生まれた年・月を選ぶ</b><span>大人の道場か学生の道場かを決めるためだけに使い、保存はしません。</span></li>
+        <li><b>道場コードを入れる（任意）</b><span>仲間と同じ道場に入りたいときだけ。空欄なら、空きのある道場に自動で入ります。</span></li>
+        <li><b>同意にチェックして「決定」</b><span>すぐに日記をつけられます。</span></li>
+      </ol>
+    </div>
+    <div class="panel">
+      <h3>ホーム画面に置くと、1回で開けます</h3>
+      <dl class="rows">
+        <div><dt>iPhone</dt><dd>Safari の下の共有ボタン（四角から矢印が出ている形）→「ホーム画面に追加」→「追加」</dd></div>
+        <div><dt>Android</dt><dd>Chrome の右上「︙」→「ホーム画面に追加」または「アプリをインストール」</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section id="write" aria-labelledby="h-write">
+    <h2 id="h-write"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3z"/><path d="M14 7l3 3"/></svg>日記をつける</h2>
+    <div class="panel">
+      <p>稽古のあと、5つの質問に答え、書きたい日は一言を添えて「日記をだす」を押します。1分ほどで終わります。</p>
+      <dl class="rows" style="margin-top:12px">
+        <div><dt>Q1〜Q3</dt><dd>今日のコンディション・稽古の負荷・稽古の充実を、5段階で選ぶ</dd></div>
+        <div><dt>Q4</dt><dd>今日意識したことを、基本テーマ6つと、自分で決めたマイテーマ（3つまで）から選ぶ</dd></div>
+        <div><dt>Q5</dt><dd>意識したことの手ごたえを、5段階で選ぶ</dd></div>
+        <div><dt>今日の一言</dt><dd>試したこと・気づいたことを、300字まで。書かなくても出せます。道場の仲間に見えます</dd></div>
+      </dl>
+      <div class="ui" aria-hidden="true">
+        <span class="chip pill">11月10日（月）⌄</span>
+        <span class="chip go">日記をだす</span>
+        <span class="ui-cap">左の日付を押すと、書く日を選べます</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>覚えておくと便利なこと</h3>
+      <dl class="rows">
+        <div><dt>朝4時の区切り</dt><dd>夜中の0時〜3時59分に書いた日記は、前の日の稽古の分になります。夜稽古のあとでも、その日の分として残ります</dd></div>
+        <div><dt>書き忘れた日</dt><dd>日付を押すと、7日前までさかのぼって書けます</dd></div>
+        <div><dt>同じ日に2回</dt><dd>あとから出した方で上書きされます。ボタンが「上書きして日記をだす」に変わります</dd></div>
+        <div><dt>今日の動画</dt><dd>日記を出すと、意識したテーマに合った YouTube チャンネル「MARC PROGRAM」の動画が1本出ます</dd></div>
+        <div><dt>次の稽古で意識すること</dt><dd>日記を出したあと、一言で決めておけます。次に開いたとき、一番上に出ます。本人だけが見られます</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section id="analysis" aria-labelledby="h-analysis">
+    <h2 id="h-analysis"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4"/><path d="M4 20h16"/><path d="M8 16v-4"/><path d="M12 16V8"/><path d="M16 16v-6"/></svg>分析を見る</h2>
+    <div class="panel">
+      <p>画面の下の「分析」を押すと、直近30日の日記から、自分の稽古の流れが見えます。3日分以上つけると出ます。</p>
+      <dl class="rows" style="margin-top:12px">
+        <div><dt>調子の波</dt><dd>コンディション・負荷・充実がどう動いているか</dd></div>
+        <div><dt>今のテーマ</dt><dd>いちばんよく意識していることと、その手ごたえの進み具合</dd></div>
+        <div><dt>過去の一言</dt><dd>自分が書いた一言を、新しい順に振り返る</dd></div>
+        <div><dt>仲間からの反応</dt><dd>一言に届いたいいねとコメント</dd></div>
+      </dl>
+      <div class="key">Q1〜Q5の答えと分析は、<b>本人だけ</b>が見られます。道場の仲間にも見えません。</div>
+    </div>
+  </section>
+
+  <section id="peers" aria-labelledby="h-peers">
+    <h2 id="h-peers"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.2 2.9-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="17" cy="9" r="2.4"/><path d="M15.8 14.2c2.3.2 4 1.7 4.7 4.8"/></svg>仲間と道場</h2>
+    <div class="panel">
+      <p>道場は10人までの仲間の集まりです。道場コードを入れずに始めると、全国から集まった剣士と同じ道場に入ります。大人と学生は、別々の道場に入ります。画面の下の「仲間の一言」で、仲間がそれぞれ最後に書いた一言が見られます。</p>
+      <div class="ui" aria-hidden="true">
+        <span class="chip">＋</span><span class="chip">💬 コメント</span><span class="chip warn">通報</span>
+        <span class="ui-cap">一言の下に出るボタン。「＋」を押すと、いいねの種類を選べます</span>
+      </div>
+      <dl class="rows" style="margin-top:12px">
+        <div><dt>いいね</dt><dd>「＋」から、👍 ナイス・🤝 わかる・💡 参考になる の3種類。押したことは道場の仲間に見えます</dd></div>
+        <div><dt>コメント</dt><dd>30字まで。一言の下に並び、道場の仲間みんなが読めます。アドバイスは歓迎ですが、「こうするべき」より「自分の場合はこうだった」と、経験で伝えてください</dd></div><div><dt>届いた反応</dt><dd>あなたの一言に新しく届いたいいねとコメントは、次に開いたとき、日記の画面の上に開いて出ます</dd></div>
+      </dl>
+    </div>
+    <div class="panel">
+      <h3>仲間を道場に呼ぶ</h3>
+      <p>「仲間の一言」の画面にある道場コードを「コピー」して伝えます。始めるときにそのコードを入れてもらえば、同じ道場に入れます。</p>
+      <div class="ui" aria-hidden="true">
+        <span class="code">道場コード<b>KTQ-284</b><i>コピー</i></span>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>別の道場に移る</h3>
+      <p>「仲間の一言」の画面の「別の道場に移る」から移れます。コードを入れればその道場へ、空欄なら空きのある別の道場へ移ります。日記と一言の記録は、そのまま持っていけます。</p>
+      <div class="key">移ったあと<b>7日間</b>は、もう一度移ることはできません。</div>
+    </div>
+    <div class="panel">
+      <h3>いやな書き込みを見つけたら</h3>
+      <p>その一言やコメントの「通報」を押して、理由を選んでください。道場の仲間なら誰でも通報でき、3人が通報すると自動で見えなくなります。運営にも届き、内容を確かめます。</p>
+    </div>
+  </section>
+
+  <section id="trouble" aria-labelledby="h-trouble">
+    <h2 id="h-trouble"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.6"/><path d="M12 17h.01"/></svg>よくある質問</h2>
+    <h3 class="qa-g">はじめるとき</h3>
+    <details>
+      <summary>本名で登録しないといけませんか？</summary>
+      <div>いいえ。ニックネームで使います。本名や学校名がわかる名前は使わないでください。</div>
+    </details>
+    <details>
+      <summary>ニックネームを変えたい・まちがえた</summary>
+      <div>ニックネームはあとから変えられません。別のニックネームで使いたいときは、いまのアカウントを退会してから、新しいニックネームで始めてください（退会すると記録は消えます）。</div>
+    </details>
+    <details>
+      <summary>道場コードがわかりません</summary>
+      <div>空欄のままで大丈夫です。空きのある道場に自動で入ります。仲間と同じ道場に入りたいときは、仲間の「仲間の一言」の画面に出ている道場コードを教えてもらってください。</div>
+    </details>
+    <details>
+      <summary>「満員です」と出て入れません</summary>
+      <div>道場は10人までです。道場コードを空欄にすると、空きのある道場に自動で入れます。30日以上日記を書いていない人（入って30日以内の人を除く）は人数に数えないので、しばらくすると空きが出ることもあります。</div>
+    </details>
+    <details>
+      <summary>「〇〇は大人（学生）の道場です。入れません」と出ます</summary>
+      <div>大人（大学生・社会人）と学生（高校生まで）は、別々の道場に入ります。区分のちがう道場には、道場コードがあっても入れません。</div>
+    </details>
+    <details>
+      <summary>生まれた年・月をまちがえて選びました</summary>
+      <div>区分（大人・学生）は、はじめるときに決まり、あとから変えられません。まちがえた場合は、退会してから、正しい年・月で始め直してください。退会から30日間は同じニックネームを使えないため、別のニックネームで始めることになります。</div>
+    </details>
+    <h3 class="qa-g">日記</h3>
+    <details>
+      <summary>夜中に書いた日記が、前の日の分になっています</summary>
+      <div>日付の区切りは朝4時です。0時〜3時59分に書いた日記は、前の日の稽古の分になります。夜稽古のあとに書いても、その日の分として残るための決まりです。</div>
+    </details>
+    <details>
+      <summary>書き忘れた日の分を書きたい</summary>
+      <div>日付の欄を押すと、7日前までさかのぼって書けます。8日以上前の日は書けません。</div>
+    </details>
+    <details>
+      <summary>まちがえて日記を出してしまった</summary>
+      <div>同じ日の日記をもう一度出すと、あとから出した方に置き換わります（ボタンが「上書きして日記をだす」に変わります）。</div>
+    </details>
+    <details>
+      <summary>一言だけを消したい</summary>
+      <div>その日の日記を、一言を空にして出し直してください。一言が消え、仲間の一言にも出なくなります。</div>
+    </details>
+    <details>
+      <summary>分析が出ません</summary>
+      <div>直近30日のうち、3日分以上の日記が必要です。</div>
+    </details>
+    <details>
+      <summary>日記を出したあとの動画が、テーマと合いません</summary>
+      <div>テーマごとに、タイトルの言葉から選んだ動画を、日替わりで1本出しています。合わないときは、チャンネルの他の動画もご覧ください。</div>
+    </details>
+    <h3 class="qa-g">仲間と道場</h3>
+    <details>
+      <summary>仲間の一言が出てきません</summary>
+      <div>道場に自分しかいないか、仲間の一言が14日より前のものだけのときは出ません。仲間に道場コードを伝えて、呼んでみてください。</div>
+    </details>
+    <details>
+      <summary>コメントでアドバイスしてもいいですか？</summary>
+      <div>歓迎です。ただ「こうするべき」と教えるより、「自分の場合はこうだった」と経験を伝えてください。剣道日記は、まず認め合う場所です。</div>
+    </details>
+    <details>
+      <summary>送ったコメントやいいねを取り消したい</summary>
+      <div>いいねは、もう一度押すと取り消せます。コメントは、送ったあとに消せません。送る前に読み返してください。</div>
+    </details>
+    <details>
+      <summary>いやな書き込みを見つけました</summary>
+      <div>その一言やコメントの「通報」を押してください。3人が通報すると自動で見えなくなり、運営にも届きます。通報したことは、書いた人には知らされません。</div>
+    </details>
+    <details>
+      <summary>道場を移りたい</summary>
+      <div>「仲間の一言」の画面の「別の道場に移る」から移れます。移ったあと7日間は、もう一度移れません。記録はそのまま持っていけます。</div>
+    </details>
+    <details>
+      <summary>Q1〜Q5の答えは、仲間に見えますか？</summary>
+      <div>見えません。Q1〜Q5の答えと分析は、本人だけが見られます。仲間に見えるのは、一言・アイコン・いいね・コメントです。</div>
+    </details>
+    <h3 class="qa-g">引き継ぎ番号・アカウント</h3>
+    <details>
+      <summary>スマホを替えます。何をしておけばいい？</summary>
+      <div>いまのスマホで、引き継ぎ番号を覚えているか確かめてください。不安なときは、右上のアイコン →「引き継ぎ番号の変更・退会」→「引き継ぎ番号を変える」で、覚えやすい番号に変えておきます。新しいスマホでは、同じニックネームを入れて「本人です（上の引き継ぎ番号で続ける）」を押し、引き継ぎ番号を入れれば続けられます。</div>
+    </details>
+    <details>
+      <summary>引き継ぎ番号を忘れました</summary>
+      <div>いま使っているスマホがあれば、右上のアイコン →「引き継ぎ番号の変更・退会」から、新しい番号に変えられます（いまの番号は要りません）。そのスマホも使えないときは、<b>運営にも戻せません</b>。なりすましを防ぐため、運営が引き継ぎ番号を戻すことはしていません。新しいニックネームで始めてください。</div>
+    </details>
+    <details>
+      <summary>引き継ぎ番号をまちがえて、入れなくなりました</summary>
+      <div>5回続けてまちがえると、しばらく入れなくなります。待つ時間は画面に出ます。続けてまちがえるほど長くなるので、思い出してから入れてください。</div>
+    </details>
+    <details>
+      <summary>退会したい</summary>
+      <div>右上のアイコン →「引き継ぎ番号の変更・退会」→「退会する」から、引き継ぎ番号を入れて退会できます。</div>
+    </details>
+    <details>
+      <summary>退会すると、どうなりますか？</summary>
+      <div>日記・一言・コメント・いいね・アイコン・マイテーマが、すべて消えます。元に戻せません。退会から30日間は、同じニックネームを使えません。不正を防ぐため、通報の記録と、ニックネーム・退会した日時の記録は残ります。</div>
+    </details>
+    <h3 class="qa-g">画面・通信</h3>
+    <details>
+      <summary>新しい機能が出てこない・画面が古い</summary>
+      <div>ページを開き直してください。それでも変わらないときは、ブラウザを一度閉じてから開いてください。ホーム画面から開いている場合は、アプリを上にはらって閉じてから開き直します。</div>
+    </details>
+    <details>
+      <summary>「通信できませんでした」と出ます</summary>
+      <div>電波のよい所で、もう一度押してください。入れた答えと一言はスマホの中に控えてあるので、画面を閉じても、次に開いたときに戻ります。</div>
+    </details>
+    <details>
+      <summary>使えるスマホ・パソコンは？</summary>
+      <div>iPhone（Safari）、Android（Chrome）、パソコンのブラウザで使えます。アプリのインストールは要りません。</div>
+    </details>
+    <details>
+      <summary>お金はかかりますか？</summary>
+      <div>かかりません。剣道日記は無料です（通信料は利用者の負担です）。</div>
+    </details>
+    <p class="muted" style="margin-top:12px">ここで解決しないときだけ、下のお問い合わせ先にご連絡ください。</p>
+  </section>
+
+  <section id="rules" aria-labelledby="h-rules">
+    <h2 id="h-rules"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>守ってほしいこと</h2>
+    <div class="panel">
+      <p class="creed"><b>教えるより、まず認める。</b>アドバイスは「こうするべき」ではなく、「自分の場合はこうだった」と経験で伝えてください。</p>
+      <ul class="rules">
+        <li>仲間を傷つける・ばかにする書き込みはしない</li>
+        <li>本名・学校名・住所・連絡先など、自分や他の人がわかることは書かない</li>
+        <li>宣伝や勧誘はしない</li>
+        <li>他の人になりすまさない</li>
+      </ul>
+      <p class="muted" style="margin-top:12px">くわしくは<a href="terms.html">利用規約</a>と<a href="privacy.html">プライバシーポリシー</a>をご覧ください。</p>
+    </div>
+  </section>
+
+  <div class="start-end"><p>無料・広告なし・ダウンロード不要。ニックネームだけで始められます。<a href="about.html">剣道日記とは</a></p><a class="start-go" href="./">無料で日記をはじめる</a></div>
+
+  <div class="contact">
+    <b>お問い合わせ</b><br>
+    JOBIS株式会社　剣道日記 運営（MARC PROGRAM）<br>佐賀県佐賀市若楠1-6-12<br>メール：<a href="mailto:marcprogram.manage@gmail.com"><b>marcprogram.manage@gmail.com</b></a>
+  </div>
+
+  <div class="links">
+    <a href="./">剣道日記</a>
+    <a href="terms.html">利用規約</a>
+    <a href="privacy.html">プライバシーポリシー</a>
+  </div>
+  <div class="foot">© 2026 JOBIS株式会社 / MARC PROGRAM</div>
+</main>
+</body>
+</html>
