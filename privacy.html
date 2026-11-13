@@ -4,48 +4,180 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#EEF6F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <title>プライバシーポリシー｜剣道日記</title>
 <link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
-:root { --bg: #EEF6F7; --card: #FFFFFF; --label: #141416; --label2: #5E6B6E; --label3: #9FAAAD; --sep: rgba(6,50,59,.12); --accent: #B42D16; }
-@media (prefers-color-scheme: dark) { :root { --bg: #000000; --card: #1C1C1E; --label: #F2F2F7; --label2: #A1A1A8; --label3: #6B6B72; --sep: rgba(84,84,88,.6); --accent: #FF6B4F; } }
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--label); font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif; font-size: 15px; line-height: 1.8; -webkit-text-size-adjust: 100%; }
-.wrap { max-width: 680px; margin: 0 auto; padding: 24px 16px calc(40px + env(safe-area-inset-bottom)); }
-.back { display: inline-block; padding: 4px 0; color: var(--label2); text-decoration: none; font-size: 14px; }
-h1 { margin: 16px 0 4px; font-size: 24px; line-height: 1.4; }
-.date { color: var(--label2); font-size: 13px; }
-.card { margin-top: 16px; padding: 20px 16px; background: var(--card); border-radius: 16px; }
-h2 { margin: 24px 0 8px; font-size: 17px; line-height: 1.5; }
-h2:first-child { margin-top: 0; }
-p, li { margin: 0 0 8px; overflow-wrap: anywhere; }
-ul, ol { margin: 0 0 8px; padding-left: 1.4em; }
-table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 14px; }
-th, td { padding: 8px 6px; border-top: 1px solid var(--sep); text-align: left; vertical-align: top; }
-th { width: 34%; font-weight: 600; }
-a { color: var(--accent); }
-.foot { margin-top: 24px; text-align: center; color: var(--label3); font-size: 12px; }
+/* 剣道日記の本体と同じ色・文字（浅葱の帯・墨・紅は知らせだけ） */
+:root {
+  --bg: #EEF6F7; --card: #FFFFFF; --raised: #F1F7F8; --sep: rgba(6,50,59,.12);
+  --label: #141416; --label2: #5E6B6E; --label3: #9FAAAD;
+  --ink: #06323B; --ink-2: #0E4A55; --brand-ink: #086F7A; --kurenai: #C8102E;
+  --card-shadow: 0 1px 2px rgba(6,50,59,.05), 0 6px 18px rgba(6,50,59,.07);
+  --hero: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='10'%3E%3Cpath d='M0 10L10 0l10 10z' fill='%23EEF6F7'/%3E%3C/svg%3E") left bottom / 20px 10px repeat-x,
+          linear-gradient(170deg, #6FD5DD 0%, #3CC4CF 100%);
+  --btn: linear-gradient(160deg, #3A3A3C, #111113); --on-btn: #FFFFFF;
+  --chip: #FFFFFF; --chip-line: rgba(6,50,59,.14);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000; --card: #1C1C1E; --raised: #2C2C2E; --sep: rgba(84,84,88,.6);
+    --label: #F2F2F7; --label2: #A1A1A8; --label3: #6B6B72;
+    --brand-ink: #7FDBE2; --kurenai: #FF5A6E; --card-shadow: none;
+    --hero: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='10'%3E%3Cpath d='M0 10L10 0l10 10z' fill='%23000'/%3E%3C/svg%3E") left bottom / 20px 10px repeat-x,
+            linear-gradient(170deg, #6FD5DD 0%, #3CC4CF 100%);
+    --btn: linear-gradient(160deg, #FFFFFF, #D1D1D6); --on-btn: #111113;
+    --chip: #2C2C2E; --chip-line: rgba(255,255,255,.12);
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; background: var(--bg); scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--label); font-size: 15px; line-height: 1.75;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", Meiryo, sans-serif; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--brand-ink); outline-offset: 2px; border-radius: 6px; }
+.wrap { max-width: 640px; margin: 0 auto; padding: 0 16px calc(48px + env(safe-area-inset-bottom)); }
+
+/* 上の帯：アプリと同じ浅葱＋段だら（このページで目立たせるのはここだけ） */
+.top { background: var(--hero); color: var(--ink); padding: calc(12px + env(safe-area-inset-top)) 0 34px; }
+.top .wrap { padding-bottom: 0; }
+.bar { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; text-decoration: none; }
+.brand img { width: 32px; height: 32px; border-radius: 8px; }
+.back { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; font-size: 14px; font-weight: 600; color: var(--ink-2); text-decoration: none; }
+.top h1 { margin: 20px 0 6px; font-size: 28px; line-height: 1.35; letter-spacing: .02em; }
+.top p { margin: 0; max-width: 30em; font-size: 15px; color: var(--ink-2); }
+
+/* やりたいことから選ぶ */
+.tasks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+.task { display: flex; flex-direction: column; gap: 6px; min-height: 92px; padding: 14px; border-radius: 16px; background: var(--card); box-shadow: var(--card-shadow); text-decoration: none; }
+.task svg { width: 24px; height: 24px; fill: none; stroke: var(--brand-ink); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.task b { font-size: 15px; line-height: 1.4; }
+.task span { font-size: 12px; line-height: 1.5; color: var(--label2); }
+
+/* 本文 */
+section { margin-top: 40px; scroll-margin-top: 12px; }
+section > h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 20px; line-height: 1.4; }
+section > h2 svg { flex: 0 0 auto; width: 26px; height: 26px; fill: none; stroke: var(--brand-ink); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.panel { padding: 18px 16px; border-radius: 16px; background: var(--card); box-shadow: var(--card-shadow); }
+.panel + .panel { margin-top: 8px; }
+.panel h3 { margin: 0 0 6px; font-size: 16px; line-height: 1.5; }
+.panel p { margin: 0; }
+.panel p + p { margin-top: 8px; }
+.muted { color: var(--label2); font-size: 14px; }
+
+/* 手順（順番がある所だけ番号） */
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+.steps li { position: relative; padding: 0 0 16px 40px; counter-increment: s; }
+.steps li:last-child { padding-bottom: 0; }
+.steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--btn); color: var(--on-btn); font-size: 13px; font-weight: 700; line-height: 26px; text-align: center; }
+.steps li::after { content: ""; position: absolute; left: 12.5px; top: 30px; bottom: 4px; width: 1px; background: var(--sep); }
+.steps li:last-child::after { display: none; }
+.steps b { display: block; font-size: 15px; }
+.steps span { display: block; font-size: 14px; color: var(--label2); }
+
+/* 画面の部品の見本（実際のボタンと同じ見た目） */
+.ui { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding: 14px; border-radius: 12px; background: var(--raised); }
+.ui-cap { width: 100%; margin-top: -2px; font-size: 12px; color: var(--label2); }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 1px solid var(--chip-line); border-radius: 999px; background: var(--chip); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.chip.pill { background: rgba(255,255,255,.6); border-color: transparent; color: var(--ink); font-size: 15px; }
+.chip.go { height: 40px; padding: 0 18px; border: 0; background: var(--btn); color: var(--on-btn); font-size: 14px; letter-spacing: .06em; }
+.chip.warn { color: var(--label2); }
+.code { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border-radius: 12px; background: var(--card); font-size: 13px; color: var(--label2); }
+.code b { font-size: 16px; letter-spacing: .1em; color: var(--label); }
+.code i { margin-left: auto; font-style: normal; padding: 4px 12px; border-radius: 999px; background: var(--raised); font-size: 13px; font-weight: 600; color: var(--label); }
+
+/* 一覧（見出しと説明の組） */
+.rows { margin: 0; }
+.rows div { display: grid; grid-template-columns: 7.5em 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--sep); }
+.rows div:first-child { border-top: 0; padding-top: 0; }
+.rows div:last-child { padding-bottom: 0; }
+.rows dt { font-weight: 700; font-size: 14px; }
+.rows dd { margin: 0; font-size: 14px; }
+@media (max-width: 360px) { .rows div { grid-template-columns: 1fr; gap: 2px; } }
+
+/* 大事なことの印（紅は知らせだけ） */
+.key { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--raised); font-size: 14px; }
+.key b { color: var(--kurenai); }
+
+/* 困ったとき：開いて読む */
+details { border-radius: 16px; background: var(--card); box-shadow: var(--card-shadow); }
+details + details { margin-top: 8px; }
+summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 12px 16px; font-weight: 700; cursor: pointer; list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: ""; flex: 0 0 auto; width: 9px; height: 9px; border-right: 2px solid var(--label3); border-bottom: 2px solid var(--label3); transform: rotate(45deg) translate(-2px, -2px); transition: transform .2s; }
+details[open] summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+@media (prefers-reduced-motion: reduce) { summary::after { transition: none; } }
+details > div { padding: 0 16px 16px; font-size: 14px; color: var(--label2); }
+
+.rules { list-style: none; margin: 0; padding: 0; }
+.rules li { position: relative; padding: 10px 0 10px 28px; border-top: 1px solid var(--sep); }
+.rules li:first-child { border-top: 0; padding-top: 0; }
+.rules li:last-child { padding-bottom: 0; }
+.rules li::before { content: ""; position: absolute; left: 4px; top: 17px; width: 12px; height: 2px; background: var(--kurenai); transform: rotate(45deg); }
+.rules li::after { content: ""; position: absolute; left: 4px; top: 17px; width: 12px; height: 2px; background: var(--kurenai); transform: rotate(-45deg); }
+.rules li:first-child::before, .rules li:first-child::after { top: 7px; }
+
+.contact { margin-top: 40px; padding: 18px 16px; border-radius: 16px; background: var(--raised); font-size: 14px; color: var(--label2); }
+.contact b { color: var(--label); }
+.links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin-top: 24px; font-size: 13px; }
+.links a { color: var(--label2); text-decoration: none; padding: 4px 0; }
+.foot { margin-top: 8px; text-align: center; font-size: 12px; color: var(--label3); }
+</style>
+<style>
+.doc h2 { margin: 0 0 8px; font-size: 17px; line-height: 1.5; }
+.doc p { margin: 0; }
+.doc p + p, .doc p + ul, .doc p + ol, .doc ul + p, .doc ol + p, .doc table + p { margin-top: 8px; }
+.doc ul, .doc ol { margin: 8px 0 0; padding-left: 1.4em; }
+.doc li { margin: 4px 0; }
+.doc table { width: 100%; margin-top: 8px; border-collapse: collapse; font-size: 14px; }
+.doc th, .doc td { padding: 10px 0; border-top: 1px solid var(--sep); text-align: left; vertical-align: top; }
+.doc tr:first-child th, .doc tr:first-child td { border-top: 0; }
+.doc th { width: 7.5em; padding-right: 12px; font-weight: 700; }
+.doc a { color: var(--brand-ink); }
+.doc b { font-weight: 700; }
+.top .date { margin-top: 6px; font-size: 13px; color: var(--ink-2); }
 </style>
 </head>
 <body>
-<div class="wrap">
-<a class="back" href="./">‹ 剣道日記にもどる</a>
-<h1>プライバシーポリシー</h1>
-<div class="date">制定日：2026年11月9日</div>
-<div class="card">
-<h2>1. このポリシーについて</h2>
-<p>MARC PROGRAM（以下「運営者」）は、剣道日記（以下「本サービス」）で預かる情報を、このポリシーに従って取り扱います。</p>
 
+<header class="top">
+  <div class="wrap">
+    <div class="bar">
+      <a class="brand" href="./"><img src="icon-192.png" alt="">剣道日記</a>
+      <a class="back" href="./">剣道日記をひらく</a>
+    </div>
+    <h1>プライバシーポリシー</h1>
+    <div class="date">制定日：2026年11月9日　改定日：2026年11月13日</div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div style="height:16px"></div>
+  <div class="panel doc">
+<h2>1. このポリシーについて</h2>
+<p>JOBIS株式会社（以下「運営者」）は、MARC PROGRAM の剣道日記（以下「本サービス」）で預かる情報を、個人情報の保護に関する法律その他の法令を守り、このポリシーに従って取り扱います。</p>
+  </div>
+  <div class="panel doc">
 <h2>2. 預かる情報</h2>
-<p>本サービスは、氏名・メールアドレス・電話番号・住所・位置情報を求めません。預かるのは、次の情報だけです。</p>
+<p>運営者が預かるのは、次の情報だけです。剣道日記は、ニックネームだけで使えます。本名・メールアドレス・電話番号・住所などを登録していただく必要はありません。</p>
 <table>
-<tr><th>ニックネーム</th><td>利用者が決めた名前（20字まで）</td></tr>
-<tr><th>合言葉・端末の鍵</th><td>本人確認に使います。<b>元の数字や文字は保存せず、変換した値（ハッシュ）だけ</b>を保存します</td></tr>
-<tr><th>日記の内容</th><td>稽古の日付、Q1〜Q5の回答、今日の一言、マイテーマ</td></tr>
-<tr><th>道場とのやりとり</th><td>所属する道場、アイコン、いいね、コメント、通報の内容</td></tr>
+<tr><th>ニックネーム</th><td>利用者が決めた名前（20字まで）。本名は使わないでください</td></tr>
+<tr><th>本人確認の記録</th><td>剣道日記の中で決めた引き継ぎ番号（数字4桁）と、端末ごとに自動で作る鍵は、<b>番号や鍵そのものは保存しません</b>。本人かどうかを照らし合わせるための、元に戻せない形に変換した値（ハッシュ）だけを保存します。あわせて、引き継ぎ番号をまちがえた回数とロックの記録、登録した日時を保存します</td></tr>
+<tr><th>区分</th><td>大人（大学生・社会人）か、学生（高校生まで）か。はじめるときに選んだ生まれた年・月から、利用者の端末の中で決めます。<b>生まれた年・月そのものは、送らず保存もしません</b>。同じ区分の人と同じ道場に入るために使います</td></tr>
+<tr><th>日記</th><td>稽古の日付、Q1〜Q5の回答、今日の一言、マイテーマ、次の稽古で意識すること、書いた時刻（端末の時計の時刻）。あわせて、日記から計算した記録の日数・一言の数・最後に書いた日を保存します</td></tr>
+<tr><th>道場とのやりとり</th><td>所属する道場、道場に入った日時・移った日時、アイコン、いいね、コメント</td></tr>
+<tr><th>通報</th><td>通報した人のニックネーム、通報した一言・コメントとそれを書いた人のニックネーム、通報の理由</td></tr>
+<tr><th>同意の記録</th><td>同意した利用規約の版と、同意した日時</td></tr>
+<tr><th>退会の記録</th><td>退会した人のニックネームと退会した日時（「7. 保存期間と削除」をご覧ください）</td></tr>
 <tr><th>受信日時</th><td>上の情報が届いた日時</td></tr>
 </table>
-
+<p>このほか、表示を速くするための控えを、利用者の端末（ブラウザの保存領域）に保存します。広告や行動追跡のための Cookie・解析ツールは使いません。</p>
+  </div>
+  <div class="panel doc">
 <h2>3. 使う目的</h2>
 <ol>
 <li>日記の記録と、本人への分析の表示</li>
@@ -54,48 +186,80 @@ a { color: var(--accent); }
 <li>通報への対応と、不正な利用の防止</li>
 <li>本サービスの改善（個人がわからない形にまとめた数字だけを使います）</li>
 </ol>
-
+  </div>
+  <div class="panel doc">
 <h2>4. だれに見えるか</h2>
 <ul>
-<li><b>今日の一言・アイコン・いいね</b>：同じ道場の仲間（10人まで）</li>
-<li><b>コメント</b>：書かれた本人だけ</li>
-<li><b>Q1〜Q5の回答と分析</b>：本人だけ</li>
+<li><b>今日の一言・アイコン・いいね・コメント</b>：同じ道場の仲間（10人まで）</li>
+<li><b>Q1〜Q5の回答・次の稽古で意識すること・分析</b>：本人だけ</li>
 <li><b>すべての情報</b>：運営者は、通報への対応・不具合の調査・問い合わせへの対応のために確認することがあります</li>
 </ul>
-
-<h2>5. 保存する場所</h2>
-<p>情報は、運営者が管理する Google のスプレッドシート（Google LLC のサービス）に保存します。<br>
-利用者の端末には、ニックネーム・端末の鍵・表示を速くするための控えを保存します（ブラウザの保存領域）。広告や行動追跡のための Cookie・解析ツールは使いません。</p>
-
-<h2>6. 外部のサービス</h2>
+  </div>
+  <div class="panel doc">
+<h2>5. 外部のサービス</h2>
 <p>日記を出した後の「テーマの動画」と、チャンネルへのリンクは YouTube（Google LLC）のものです。動画の小さな画像を表示するときと、リンクを開いたときは、YouTube と Google のプライバシーポリシーが適用されます。</p>
-
-<h2>7. 第三者への提供</h2>
+  </div>
+  <div class="panel doc">
+<h2>6. 第三者への提供</h2>
 <p>法令に基づく場合を除き、預かった情報を第三者に提供・販売しません。</p>
-
-<h2>8. 保存期間と削除</h2>
-<p>本サービスを提供する間、情報を保存します。<br>
-日記・一言・コメントなどの削除を希望するときは、ニックネームと道場コードを添えて、下のお問い合わせ先にご連絡ください。本人と確かめたうえで削除します。<br>
-合言葉を忘れたときも、同じお問い合わせ先にご連絡ください。</p>
-
-<h2>9. 安全のための取り組み</h2>
+  </div>
+  <div class="panel doc">
+<h2>7. 保存期間と削除</h2>
+<p>本サービスを提供する間、情報を保存します。本サービスを終了したときは、すべての情報を消します。</p>
+<p><b>退会すると、その人の日記・一言・コメント・いいね・アイコン・マイテーマ・次の稽古で意識すること・道場の所属を、すぐにすべて消します。</b>退会は、画面右上のアイコン →「引き継ぎ番号の変更・退会」から、本人が引き継ぎ番号を入れて行えます。</p>
+<p>ただし、次のものは退会後も残します。</p>
 <ul>
-<li>合言葉と端末の鍵は、変換した値だけを保存します</li>
-<li>書き込みと本人だけの読み出しは、端末の鍵で本人と確かめます</li>
-<li>合言葉を5回まちがえると、一時的にロックします</li>
-<li>スプレッドシートは一般に公開せず、運営者が管理します</li>
+<li>通報の記録（いやがらせをした人が退会して記録を消すことを防ぐため）。通報の記録は、退会したかどうかに関係なく、<b>通報から1年</b>たつと消します</li>
+<li>ニックネームと退会した日時（他の人が同じニックネームで本人のふりをすることを防ぐため。退会から30日を過ぎると、同じニックネームを他の人が使えるようになります。引き継ぎ番号と端末の鍵は消します）</li>
 </ul>
-
+<p>引き継ぎ番号は運営者にも分からないため、忘れた場合に運営者が戻すことはできません。</p>
+  </div>
+  <div class="panel doc">
+<h2>8. 安全のための取り組み</h2>
+<ul>
+<li>引き継ぎ番号と端末の鍵は、そのものは保存せず、元に戻せない形に変換した値だけを保存します</li>
+<li>書き込みと本人だけの読み出しは、端末の鍵で本人と確かめます</li>
+<li>引き継ぎ番号を5回まちがえると、一時的にロックします</li>
+<li>保存先は一般に公開せず、運営者だけが管理します</li>
+<li>情報を扱えるのは運営者の担当者だけとし、担当者が使うアカウントには2段階認証を設定します</li>
+<li><b>外国での取り扱い</b>：情報は、アメリカ合衆国の事業者が提供するクラウドサービスに保存します。同社はデータセンターを複数の国に置いており、利用者の側で保存する国を選べないため、サーバーの所在する国を特定できません。候補は、同社がデータセンターを置く国（アメリカ合衆国、日本、台湾、シンガポール、インド、マレーシア、タイ、ヨーロッパの各国、チリ、ウルグアイなど）です。運営者は、アメリカ合衆国の個人情報の保護に関する制度を確かめたうえで、上の取り組みで安全を守ります</li>
+</ul>
+  </div>
+  <div class="panel doc">
+<h2>9. 開示・訂正・削除などのご請求</h2>
+<p>本人は、運営者が預かっている自分の情報について、利用目的の通知、開示、訂正・追加・削除、利用の停止・消去、第三者への提供の停止、第三者提供の記録の開示を求めることができます。</p>
+<p>日記・一言・コメントなどは剣道日記の画面でいつでも見られ、退会すればすべて消せます。それ以外のご請求は、下のお問い合わせ先に、ニックネーム・道場コード・ご請求の内容をメールでお送りください。本人であることを確かめたうえで、法令に従って、遅くならないように対応します。手数料はいただきません。</p>
+<p>情報の取り扱いについてのご意見・苦情も、同じお問い合わせ先で受け付けます。</p>
+  </div>
+  <div class="panel doc">
 <h2>10. 未成年の方へ</h2>
 <p>18歳未満の方は、保護者の方の同意を得てから利用してください。今日の一言やコメントに、本名・学校名・住所など、本人や他の人がわかる情報を書かないでください。</p>
-
+  </div>
+  <div class="panel doc">
 <h2>11. このポリシーの変更</h2>
 <p>このポリシーを変更するときは、このページでお知らせします。</p>
+  </div>
 
-<h2>12. お問い合わせ先</h2>
-<p>MARC PROGRAM　剣道日記 運営<br>メール：<b>【お問い合わせ用メールアドレス】</b></p>
-</div>
-<div class="foot">© 2026 MARC PROGRAM</div>
-</div>
+  <div class="panel doc">
+<h2>12. 運営者</h2>
+<table>
+<tr><th>名称</th><td>JOBIS株式会社</td></tr>
+<tr><th>住所</th><td>佐賀県佐賀市若楠1-6-12</td></tr>
+<tr><th>代表者</th><td>代表取締役　保﨑 敏之</td></tr>
+</table>
+  </div>
+
+  <div class="contact">
+    <b>お問い合わせ</b><br>
+    JOBIS株式会社　剣道日記 運営（MARC PROGRAM）<br>佐賀県佐賀市若楠1-6-12<br>メール：<a href="mailto:marcprogram.manage@gmail.com"><b>marcprogram.manage@gmail.com</b></a>
+  </div>
+
+  <div class="links">
+    <a href="./">剣道日記</a>
+    <a href="help.html">使い方</a>
+    <a href="terms.html">利用規約</a>
+  </div>
+  <div class="foot">© 2026 JOBIS株式会社 / MARC PROGRAM</div>
+</main>
 </body>
 </html>
